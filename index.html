@@ -117,7 +117,7 @@
             display: flex; align-items: center; justify-content: center;
         }
         .page-btn.active { background:#c27b5c; color:#fff; border-color:#c27b5c; }
-        /* 🔴 未完成事项小红点 */
+        /* 小红点 */
         .page-btn .incomplete-dot {
             position: absolute;
             top: 2px;
@@ -195,9 +195,9 @@
 
 <script>
 (function() {
-    // ==================== 修改为你的 Supabase 信息 ====================
-    var SUPABASE_URL = 'https://ltuqtpgkmuqbbfcssvti.supabase.co/rest/v1/';  // 你的项目URL
-    var SUPABASE_ANON_KEY = 'sb_publishable_xYRf0yvSgmN6pG1AJOyDFw_cOCGIcx5'; // 你的anon key
+    // ==================== 您的 Supabase 配置（已预填） ====================
+    var SUPABASE_URL = 'https://ltuqtpgkmuqbbfcssvti.supabase.co';
+    var SUPABASE_ANON_KEY = 'sb_publishable_xYRf0yvSgmN6pG1AJOyDFw_cOCGIcx5';
 
     // 存储降级
     var memoryStore = {};
@@ -342,7 +342,7 @@
         return 'hsl('+(hash%360)+',40%,55%)';
     }
 
-    // 排序：未完成在前，再按创建时间倒序
+    // 🔁 排序：未完成在前，再按创建时间倒序
     function sortTodos(data) {
         return data.sort(function(a, b) {
             if (a.completed === b.completed) {
@@ -356,9 +356,8 @@
         if(!currentUser) return;
         var res = await supabaseClient.from('todos').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: false });
         if(res.error) { console.error(res.error); return; }
-        todos = res.data || [];
-        // 应用排序规则：未完成在前
-        todos = sortTodos(todos);
+        var rawData = res.data || [];
+        todos = sortTodos(rawData);   // 应用排序
         renderPage();
     }
 
@@ -398,7 +397,7 @@
             todoList.appendChild(li);
         }
 
-        // 计算每页是否有未完成任务
+        // 🔴 计算每页是否有未完成任务
         var pageHasIncomplete = [];
         for (var p = 1; p <= totalPages; p++) {
             var slice = todos.slice((p-1)*PAGE_SIZE, p*PAGE_SIZE);
@@ -414,7 +413,6 @@
                 var btn = document.createElement('button');
                 btn.className = 'page-btn' + (j === currentPage ? ' active' : '');
                 if (pageHasIncomplete[j]) btn.classList.add('has-incomplete');
-                // 插入小红点元素
                 btn.innerHTML = j + '<span class="incomplete-dot"></span>';
                 (function(p){ btn.onclick = function(){ currentPage = p; renderPage(); }; })(j);
                 pageNumbers.appendChild(btn);
