@@ -31,7 +31,7 @@
         .btn:active { transform:scale(0.97); }
         .auth-switch { text-align:center; margin-top:16px; font-size:0.85rem; color:#8c857b; }
         .auth-switch a { color:#c27b5c; text-decoration:none; cursor:pointer; }
-        .error-msg { color:#d4786b; font-size:0.8rem; min-height:20px; margin-bottom:6px; }
+        .error-msg { color:#d4786b; font-size:0.8rem; min-height:20px; margin-bottom:6px; white-space:pre-line; }
         .main-app { display:none; }
         .main-app.active { display:block; }
         .auth-card.hidden { display:none; }
@@ -132,7 +132,6 @@
 </head>
 <body>
 <div class="app-shell">
-    <!-- 登录/注册 -->
     <div class="auth-card" id="authCard">
         <div class="auth-title" id="authTitle">登录</div>
         <div class="auth-sub" id="authSub">同步待办，多设备共享</div>
@@ -142,7 +141,7 @@
         <button class="btn" id="authBtn">登 录</button>
         <div class="auth-switch">还没有账号？<a id="switchLink">立即注册</a></div>
     </div>
-    <!-- 主应用 -->
+
     <div class="main-app" id="mainApp">
         <div class="app-container">
             <header class="app-header"><h1 class="app-title">待办清单 <span class="dot"></span></h1></header>
@@ -176,20 +175,23 @@
         </div>
     </div>
 </div>
+
 <script>
     // ==================== 1. 配置 Supabase ====================
     // ❗❗ 必须修改为你自己的 Supabase 信息 ❗❗
-    const SUPABASE_URL = 'https://ltuqtpgkmuqbbfcssvti.supabase.co/rest/v1/';  // 复制 Project URL（包含 https://）
-    const SUPABASE_ANON_KEY = 'sb_publishable_xYRf0yvSgmN6pG1AJOyDFw_cOCGIcx5';               // 复制 anon public key（以 eyJ 开头）
-    // 初始化 Supabase 客户端
+    const SUPABASE_URL = 'https://ltuqtpgkmuqbbfcssvti.supabase.co/rest/v1/';  // 你的项目URL（包含 https://）
+    const SUPABASE_ANON_KEY = 'sb_publishable_xYRf0yvSgmN6pG1AJOyDFw_cOCGIcx5';               // 你的匿名密钥（以 eyJ 开头）
+
+    // 初始化客户端
     const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        // 可选：增加超时时间
         auth: { autoRefreshToken: true, persistSession: true }
     });
-    // ==================== 2. 快速配置检查 ====================
+
+    // 快速配置检查
     if (SUPABASE_URL.includes('your-project') || SUPABASE_ANON_KEY.includes('your-anon')) {
-        document.getElementById('errorMsg').textContent = '❌ 请先替换 SUPABASE_URL 和 SUPABASE_ANON_KEY';
+        document.getElementById('errorMsg').textContent = '❌ 请先替换代码开头的 SUPABASE_URL 和 SUPABASE_ANON_KEY';
     }
+
     // ==================== UI 元素 ====================
     const authCard = document.getElementById('authCard');
     const mainApp = document.getElementById('mainApp');
@@ -216,6 +218,7 @@
     const avatarDropdown = document.getElementById('avatarDropdown');
     const dropdownUsername = document.getElementById('dropdownUsername');
     const dropdownLogout = document.getElementById('dropdownLogout');
+
     let isLoginMode = true;
     let currentUser = null;
     let todos = [];
@@ -223,6 +226,7 @@
     const PAGE_SIZE = 7;
     let clockTimer = null;
     let channel = null;
+
     // ==================== 切换登录/注册 ====================
     switchLink.addEventListener('click', () => {
         isLoginMode = !isLoginMode;
@@ -232,6 +236,7 @@
         switchLink.textContent = isLoginMode ? '立即注册' : '已有账号？登录';
         errorMsg.textContent = '';
     });
+
     // ==================== 时钟 ====================
     function updateClock() {
         const now = new Date();
@@ -242,6 +247,7 @@
     }
     function startClock() { updateClock(); clockTimer = setInterval(updateClock, 1000); }
     function stopClock() { if(clockTimer) clearInterval(clockTimer); }
+
     // ==================== 粒子特效 ====================
     function spawnParticles(el, type='complete') {
         const rect = el.getBoundingClientRect();
@@ -250,17 +256,19 @@
         for(let i=0; i<10; i++) {
             const p = document.createElement('div'); p.className='particle';
             const angle = Math.random()*Math.PI*2, dist = 20+Math.random()*40;
-            p.style.cssText = `left:${x}px;top:${y}px;width:4px;height:4px;background:${colors[Math.floor(Math.random()*colors.length)]};-
+            p.style.cssText = `left:${x}px;top:${y}px;width:4px;height:4px;background:${colors[Math.floor(Math.random()*colors.length)]};--dx:${Math.cos(angle)*dist}px;--dy:${Math.sin(angle)*dist}px;--duration:${400+Math.random()*300}ms;`;
             document.body.appendChild(p);
             p.addEventListener('animationend', ()=>p.remove());
         }
     }
+
     // ==================== 头像与菜单 ====================
     document.getElementById('avatarWrapper').addEventListener('click', (e) => {
         e.stopPropagation();
         avatarDropdown.classList.toggle('show');
     });
     document.addEventListener('click', () => avatarDropdown.classList.remove('show'));
+
     dropdownLogout.addEventListener('click', async (e) => {
         e.stopPropagation();
         await sb.auth.signOut();
@@ -273,11 +281,13 @@
         todoList.innerHTML = '';
         avatarDropdown.classList.remove('show');
     });
-    // ==================== 登录/注册处理（含详细错误） ====================
+
+    // ==================== 登录/注册处理 ====================
     authBtn.addEventListener('click', async () => {
         const username = usernameInput.value.trim();
         const password = passwordInput.value.trim();
         errorMsg.textContent = '';
+
         if(!username || !password) {
             errorMsg.textContent = '用户名和密码不能为空';
             return;
@@ -286,7 +296,9 @@
             errorMsg.textContent = '密码至少6个字符';
             return;
         }
+
         const email = `${username}@todo.local`;
+
         try {
             let result;
             if(isLoginMode) {
@@ -294,32 +306,35 @@
             } else {
                 result = await sb.auth.signUp({ email, password });
             }
+
             if(result.error) {
-                // 常见错误友好提示
-                if(result.error.message.includes('Invalid')) {
+                // 友好错误提示
+                if(result.error.message.includes('Invalid login')) {
                     errorMsg.textContent = '登录失败：用户名或密码错误';
                 } else if(result.error.message.includes('already registered')) {
-                    errorMsg.textContent = '该用户名已被注册';
+                    errorMsg.textContent = '该用户名已存在，请直接登录';
+                } else if(result.error.message.includes('rate limit')) {
+                    errorMsg.textContent = '操作太频繁，请稍后再试';
                 } else {
-                    errorMsg.textContent = '操作失败：' + result.error.message;
+                    errorMsg.textContent = '错误：' + result.error.message;
                 }
                 return;
             }
-            // 获取用户
-            const { data: { user } } = await sb.auth.getUser();
+
+            // 获取用户（注册后需稍等再获取）
+            const { data: { user }, error: userError } = await sb.auth.getUser();
+            if(userError) {
+                errorMsg.textContent = '获取用户信息失败：' + userError.message;
+                return;
+            }
             if(user) showMainApp(user);
+
         } catch(e) {
             console.error('Auth error:', e);
-            // 诊断常见问题
-            if(e.message.includes('Failed to fetch') || e.message.includes('NetworkError')) {
-                errorMsg.textContent = '🌐 网络连接失败，请检查：\n1. SUPABASE_URL 是否正确\n2. 项目是否已启动\n3. 网络是否正常';
-            } else if(e.message.includes('Invalid path')) {
-                errorMsg.textContent = '❌ 请求路径无效，请检查 SUPABASE_URL 格式（需包含 https://）';
-            } else {
-                errorMsg.textContent = '错误：' + e.message;
-            }
+            errorMsg.textContent = '网络错误：请检查 Supabase URL 和网络连接';
         }
     });
+
     // ==================== 进入主应用 ====================
     function showMainApp(user) {
         currentUser = user;
@@ -330,15 +345,17 @@
         userAvatar.textContent = initial;
         userAvatar.style.background = getColorFromUsername(user.email);
         startClock();
-        loadTodos();
-        subscribeRealtime();
         bindTodoEvents();
+        loadTodos();           // 首次加载数据
+        subscribeRealtime();   // 监听实时变化
     }
+
     function getColorFromUsername(str) {
         let hash = 0;
         for(let i=0; i<str.length; i++) hash = str.charCodeAt(i) + ((hash<<5)-hash);
         return `hsl(${hash%360}, 40%, 55%)`;
     }
+
     // ==================== 待办数据操作 ====================
     async function loadTodos() {
         if(!currentUser) return;
@@ -347,48 +364,59 @@
             .select('*')
             .eq('user_id', currentUser.id)
             .order('created_at', { ascending: false });
+
         if(error) {
             console.error('加载待办失败:', error);
             if(error.message.includes('does not exist')) {
-                alert('数据库表 "todos" 不存在，请先在 Supabase SQL Editor 中创建该表');
+                alert('数据库表 "todos" 不存在，请先在 Supabase SQL Editor 中创建表');
             }
             return;
         }
         todos = data || [];
         renderPage();
     }
+
     async function addTodo(text) {
         if(!currentUser) return;
         const { error } = await sb
             .from('todos')
             .insert([{ user_id: currentUser.id, text, completed: false }]);
+
         if(error) {
             console.error('添加待办失败:', error);
             alert('添加失败：' + error.message);
             return;
         }
-        // 实时订阅会触发 loadTodos，但也可手动调用
+        // 手动刷新，确保 UI 立刻更新
+        await loadTodos();
     }
+
     async function toggleTodo(id, completed) {
         const { error } = await sb
             .from('todos')
             .update({ completed: !completed })
             .eq('id', id);
         if(error) console.error('切换状态失败:', error);
+        // 实时订阅也会触发刷新，手动调用一次以确保
+        await loadTodos();
     }
+
     async function deleteTodo(id) {
         const { error } = await sb
             .from('todos')
             .delete()
             .eq('id', id);
         if(error) console.error('删除失败:', error);
+        await loadTodos();
     }
+
     function renderPage() {
         const totalPages = Math.ceil(todos.length / PAGE_SIZE);
         if(currentPage > totalPages) currentPage = totalPages;
         if(currentPage < 1) currentPage = 1;
         const start = (currentPage-1)*PAGE_SIZE;
         const pageData = todos.slice(start, start+PAGE_SIZE);
+
         todoList.innerHTML = '';
         pageData.forEach(t => {
             const li = document.createElement('li');
@@ -415,6 +443,7 @@
             };
             todoList.appendChild(li);
         });
+
         // 分页
         pageNumbers.innerHTML = '';
         if(totalPages <= 1) {
@@ -431,29 +460,36 @@
         }
         prevBtn.disabled = currentPage <= 1;
         nextBtn.disabled = currentPage >= totalPages;
+
         const remaining = todos.filter(t=>!t.completed).length;
         taskCount.innerHTML = `剩余 <strong>${remaining}</strong> 项 · 共 ${todos.length} 条`;
     }
+
     function escapeHtml(str) {
         const div = document.createElement('div');
         div.textContent = str;
         return div.innerHTML;
     }
+
     function formatDate(isoString) {
         const d = new Date(isoString);
         return (d.getMonth()+1) + '.' + d.getDate().toString().padStart(2,'0');
     }
-    // 实时订阅
+
+    // 实时订阅（用于其他设备同步）
     function subscribeRealtime() {
         if(!currentUser) return;
+        // 避免重复订阅
+        if(channel) sb.removeChannel(channel);
         channel = sb
-            .channel('todos-changes')
+            .channel('todos-' + currentUser.id)
             .on('postgres_changes',
                 { event: '*', schema: 'public', table: 'todos', filter: `user_id=eq.${currentUser.id}` },
                 () => loadTodos()
             )
             .subscribe();
     }
+
     function bindTodoEvents() {
         addBtn.onclick = () => {
             const text = todoInput.value.trim();
@@ -466,14 +502,16 @@
             if(currentPage<total) { currentPage++; renderPage(); }
         };
     }
+
     // 清理
     window.addEventListener('beforeunload', () => {
         stopClock();
         if(channel) sb.removeChannel(channel);
     });
+
     // 自动恢复会话
     (async function checkSession() {
-        const { data: { user }, error } = await sb.auth.getUser();
+        const { data: { user } } = await sb.auth.getUser();
         if(user) showMainApp(user);
     })();
 </script>
