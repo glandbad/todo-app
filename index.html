@@ -111,10 +111,27 @@
         }
         .pagination { display:flex; gap:4px; justify-content:center; padding:8px 0; }
         .page-btn {
+            position: relative;
             min-width:28px; height:28px; border-radius:50%; border:1.5px solid transparent;
             background:transparent; color:#8c857b; cursor:pointer; font-size:0.78rem;
+            display: flex; align-items: center; justify-content: center;
         }
         .page-btn.active { background:#c27b5c; color:#fff; border-color:#c27b5c; }
+        /* 🔴 未完成事项小红点 */
+        .page-btn .incomplete-dot {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #e74c3c;
+            box-shadow: 0 0 3px rgba(231,76,60,0.5);
+            display: none;
+        }
+        .page-btn.has-incomplete .incomplete-dot {
+            display: block;
+        }
         .app-footer {
             display:flex; justify-content:space-between; padding-top:8px; margin-top:6px;
             border-top:1px solid #f0ebe0; font-size:0.78rem; color:#8c857b;
@@ -179,27 +196,17 @@
 <script>
 (function() {
     // ==================== 修改为你的 Supabase 信息 ====================
-    var SUPABASE_URL = 'https://ltuqtpgkmuqbbfcssvti.supabase.co';  // 项目URL，末尾不要加路径
+    var SUPABASE_URL = 'https://ltuqtpgkmuqbbfcssvti.supabase.co/rest/v1/';  // 你的项目URL
     var SUPABASE_ANON_KEY = 'sb_publishable_xYRf0yvSgmN6pG1AJOyDFw_cOCGIcx5'; // 你的anon key
 
-    // 存储降级方案
+    // 存储降级
     var memoryStore = {};
-    function getItem(key) {
-        try { return localStorage.getItem(key); } catch(e) { return memoryStore[key] || null; }
-    }
-    function setItem(key, value) {
-        try { localStorage.setItem(key, value); } catch(e) { memoryStore[key] = value; }
-    }
-    function removeItem(key) {
-        try { localStorage.removeItem(key); } catch(e) { delete memoryStore[key]; }
-    }
+    function getItem(key) { try { return localStorage.getItem(key); } catch(e) { return memoryStore[key] || null; } }
+    function setItem(key, value) { try { localStorage.setItem(key, value); } catch(e) { memoryStore[key] = value; } }
+    function removeItem(key) { try { localStorage.removeItem(key); } catch(e) { delete memoryStore[key]; } }
 
     var supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        auth: {
-            autoRefreshToken: true,
-            persistSession: true,
-            storage: { getItem: getItem, setItem: setItem, removeItem: removeItem }
-        }
+        auth: { autoRefreshToken: true, persistSession: true, storage: { getItem: getItem, setItem: setItem, removeItem: removeItem } }
     });
 
     // UI元素
@@ -251,8 +258,7 @@
         dateText.textContent = now.getFullYear() + '年' + (now.getMonth()+1) + '月' + now.getDate() + '日';
         hoursEl.textContent = String(now.getHours()).padStart(2,'0');
         minutesEl.textContent = String(now.getMinutes()).padStart(2,'0');
-        var weekdays = ['星期日','星期一','星期二','星期三','星期四','星期五','星期六'];
-        weekdayBadge.textContent = weekdays[now.getDay()];
+        weekdayBadge.textContent = ['星期日','星期一','星期二','星期三','星期四','星期五','星期六'][now.getDay()];
     }
     function startClock() { updateClock(); clockTimer = setInterval(updateClock, 1000); }
     function stopClock() { if(clockTimer) clearInterval(clockTimer); }
@@ -314,9 +320,7 @@
             }
             var userRes = await supabaseClient.auth.getUser();
             if(userRes.data && userRes.data.user) showMainApp(userRes.data.user);
-        } catch(e) {
-            errorMsg.textContent = '网络错误，请检查URL和网络';
-        }
+        } catch(e) { errorMsg.textContent = '网络错误，请检查URL和网络'; }
     });
 
     function showMainApp(user) {
@@ -338,11 +342,23 @@
         return 'hsl('+(hash%360)+',40%,55%)';
     }
 
+    // 排序：未完成在前，再按创建时间倒序
+    function sortTodos(data) {
+        return data.sort(function(a, b) {
+            if (a.completed === b.completed) {
+                return new Date(b.created_at) - new Date(a.created_at);
+            }
+            return a.completed ? 1 : -1;
+        });
+    }
+
     async function loadTodos() {
         if(!currentUser) return;
         var res = await supabaseClient.from('todos').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: false });
         if(res.error) { console.error(res.error); return; }
         todos = res.data || [];
+        // 应用排序规则：未完成在前
+        todos = sortTodos(todos);
         renderPage();
     }
 
@@ -365,11 +381,12 @@
 
     function renderPage() {
         var totalPages = Math.ceil(todos.length / PAGE_SIZE);
-        if(currentPage > totalPages) currentPage = totalPages;
-        var start = (currentPage-1)*PAGE_SIZE;
-        var pageData = todos.slice(start, start+PAGE_SIZE);
+        if (currentPage > totalPages) currentPage = totalPages;
+        if (currentPage < 1) currentPage = 1;
+        var start = (currentPage - 1) * PAGE_SIZE;
+        var pageData = todos.slice(start, start + PAGE_SIZE);
         todoList.innerHTML = '';
-        for(var i=0;i<pageData.length;i++) {
+        for (var i = 0; i < pageData.length; i++) {
             var t = pageData[i];
             var li = document.createElement('li');
             li.className = 'todo-item' + (t.completed ? ' completed-item' : '');
@@ -380,20 +397,32 @@
             })(t);
             todoList.appendChild(li);
         }
+
+        // 计算每页是否有未完成任务
+        var pageHasIncomplete = [];
+        for (var p = 1; p <= totalPages; p++) {
+            var slice = todos.slice((p-1)*PAGE_SIZE, p*PAGE_SIZE);
+            pageHasIncomplete[p] = slice.some(function(t) { return !t.completed; });
+        }
+
         pageNumbers.innerHTML = '';
-        if(totalPages<=1) pagination.classList.add('hidden-pagination');
-        else {
+        if (totalPages <= 1) {
+            pagination.classList.add('hidden-pagination');
+        } else {
             pagination.classList.remove('hidden-pagination');
-            for(var j=1;j<=totalPages;j++) {
+            for (var j = 1; j <= totalPages; j++) {
                 var btn = document.createElement('button');
-                btn.className = 'page-btn'+(j===currentPage?' active':'');
-                btn.textContent = j;
-                (function(p){ btn.onclick = function(){ currentPage=p; renderPage(); }; })(j);
+                btn.className = 'page-btn' + (j === currentPage ? ' active' : '');
+                if (pageHasIncomplete[j]) btn.classList.add('has-incomplete');
+                // 插入小红点元素
+                btn.innerHTML = j + '<span class="incomplete-dot"></span>';
+                (function(p){ btn.onclick = function(){ currentPage = p; renderPage(); }; })(j);
                 pageNumbers.appendChild(btn);
             }
         }
-        prevBtn.disabled = currentPage<=1;
-        nextBtn.disabled = currentPage>=totalPages;
+        prevBtn.disabled = currentPage <= 1;
+        nextBtn.disabled = currentPage >= totalPages;
+
         var remaining = todos.filter(function(t){ return !t.completed; }).length;
         taskCount.innerHTML = '剩余 <strong>'+remaining+'</strong> 项 · 共 '+todos.length+' 条';
     }
