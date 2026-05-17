@@ -1,578 +1,384 @@
-const SUPABASE_URL = 'https://ohkrjjwzzmpnnpcrcyoe.supabase.co/rest/v1/'
-const SUPABASE_KEY = 'sb_publishable_eEqPJYVucSfVwc7-DnzWgQ_iDoT-_60'
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>待办清单 · 云同步</title>
-    <!-- 引入 Supabase SDK -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>待办清单 · Supabase云同步</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        /* ===== 样式与你提供的完全一致，此处省略，直接复制你原文件中的 <style> 全部内容 ===== */
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        /* ========== 整体样式（精简保留核心UI） ========== */
+        * { margin:0; padding:0; box-sizing:border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-            background: #f7f4ef;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 16px;
-            color: #3e3a35;
-            -webkit-tap-highlight-color: transparent;
+            font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: #f7f4ef; min-height:100vh; display:flex; align-items:center; justify-content:center;
+            padding:16px; color:#3e3a35;
         }
-        .app-shell { width: 100%; max-width: 440px; margin: 0 auto; }
-        .auth-card {
-            background: #fffefb; border-radius: 28px;
-            box-shadow: 0 8px 32px rgba(60, 50, 40, 0.10);
-            padding: 36px 28px; border: 1px solid #e7e0d8; text-align: center;
-        }
-        .auth-title { font-size: 1.6rem; font-weight: 620; margin-bottom: 6px; color: #3e3a35; }
-        .auth-sub { font-size: 0.85rem; color: #8c857b; margin-bottom: 26px; }
-        .input-field {
-            width: 100%; padding: 13px 16px; margin-bottom: 12px;
-            border: 1.5px solid #e7e0d8; border-radius: 16px; font-size: 0.95rem;
-            background: #fdfcf9; outline: none; transition: all 0.25s ease;
-        }
-        .input-field:focus { border-color: #c27b5c; box-shadow: 0 0 0 4px rgba(194,123,92,0.08); }
-        .btn {
-            width: 100%; padding: 13px; border: none; border-radius: 16px;
-            font-size: 1rem; font-weight: 600; cursor: pointer; background: #c27b5c;
-            color: #fff; margin-top: 6px; transition: all 0.2s ease;
-        }
-        .btn:hover { background: #b56e4f; }
-        .btn:active { transform: scale(0.97); }
-        .auth-switch { margin-top: 16px; font-size: 0.85rem; color: #8c857b; }
-        .auth-switch a { color: #c27b5c; text-decoration: none; font-weight: 500; cursor: pointer; }
-        .error-msg { color: #d4786b; font-size: 0.8rem; min-height: 20px; }
-        .main-app { display: none; }
-        .main-app.active { display: block; }
-        .auth-card.hidden { display: none; }
-        .app-container {
-            background: #fffefb; border-radius: 28px;
-            box-shadow: 0 8px 32px rgba(60, 50, 40, 0.10);
-            padding: 22px 20px 14px; border: 1px solid #e7e0d8;
-        }
-        .app-header { text-align: center; margin-bottom: 6px; }
-        .app-title { font-size: 1.35rem; font-weight: 620; }
-        .dot { width: 7px; height: 7px; border-radius: 50%; background: #c27b5c; display: inline-block; animation: dotPulse 2.6s ease-in-out infinite; }
-        @keyframes dotPulse { 0%,100%{ transform: scale(1); opacity:0.7; } 50%{ transform: scale(1.7); opacity:1; } }
-        .datetime-row {
-            display: flex; align-items: center; justify-content: space-between; gap:12px;
-            margin-bottom:14px; padding:10px 16px; background: linear-gradient(135deg, #fdfaf5 0%, #f9f4eb 100%);
-            border-radius:18px; border:1px solid #efe8da;
-        }
-        .datetime-info { display: flex; flex-direction: column; gap:1px; }
-        .date-display { font-size:0.78rem; color:#8c857b; }
-        .time-display { font-size:1.35rem; font-family: monospace; color:#3e3a35; }
+        .app-shell { width:100%; max-width:440px; }
+        .auth-card, .app-container { background:#fffefb; border-radius:28px; box-shadow:0 8px 32px rgba(60,50,40,0.1); border:1px solid #e7e0d8; padding:28px 22px; }
+        .auth-title { font-size:1.5rem; font-weight:620; text-align:center; margin-bottom:6px; }
+        .auth-sub { text-align:center; color:#8c857b; font-size:0.85rem; margin-bottom:24px; }
+        .input-field { width:100%; padding:12px 16px; margin-bottom:12px; border:1.5px solid #e7e0d8; border-radius:16px; font-size:0.95rem; background:#fdfcf9; outline:none; }
+        .input-field:focus { border-color:#c27b5c; box-shadow:0 0 0 4px rgba(194,123,92,0.08); }
+        .btn { width:100%; padding:13px; border:none; border-radius:16px; font-size:1rem; font-weight:600; background:#c27b5c; color:#fff; cursor:pointer; margin-top:6px; }
+        .btn:active { transform:scale(0.97); }
+        .auth-switch { text-align:center; margin-top:16px; font-size:0.85rem; color:#8c857b; }
+        .auth-switch a { color:#c27b5c; text-decoration:none; cursor:pointer; }
+        .error-msg { color:#d4786b; font-size:0.8rem; min-height:20px; margin-bottom:6px; }
+        .main-app { display:none; }
+        .main-app.active { display:block; }
+        .auth-card.hidden { display:none; }
+        .app-header { text-align:center; margin-bottom:8px; }
+        .app-title { font-size:1.35rem; font-weight:620; }
+        .dot { width:7px; height:7px; border-radius:50%; background:#c27b5c; display:inline-block; animation: dotPulse 2.6s infinite; }
+        @keyframes dotPulse { 0%,100%{transform:scale(1);opacity:0.7} 50%{transform:scale(1.7);opacity:1} }
+        .datetime-row { display:flex; align-items:center; justify-content:space-between; padding:10px 16px; background:linear-gradient(135deg,#fdfaf5,#f9f4eb); border-radius:18px; border:1px solid #efe8da; margin-bottom:14px; }
+        .date-display { font-size:0.78rem; color:#8c857b; display:flex; align-items:center; gap:5px; }
+        .time-display { font-size:1.3rem; font-weight:300; font-family:monospace; }
         .weekday-badge { font-size:0.68rem; color:#c27b5c; background:#fdf5f0; padding:1px 8px; border-radius:12px; }
-        .user-avatar-wrapper { position:relative; cursor:pointer; }
-        .user-avatar {
-            width:44px; height:44px; border-radius:50%; object-fit:cover;
-            border:2.5px solid #e8c9b8; box-shadow:0 2px 10px rgba(60,50,40,0.10);
-            background:#f0e4d8; display:flex; align-items:center; justify-content:center;
-            font-weight:600; font-size:1rem; color:#fff; transition:0.3s;
-        }
-        .user-avatar:hover { border-color:#c27b5c; transform:scale(1.05); }
-        .avatar-dropdown {
-            position:absolute; top:52px; right:0; background:#fffefb; border-radius:14px;
-            box-shadow:0 6px 24px rgba(60,50,40,0.15); border:1px solid #e7e0d8;
-            padding:6px 0; min-width:130px; opacity:0; visibility:hidden;
-            transform:translateY(-8px); transition:0.25s; z-index:20;
-        }
-        .avatar-dropdown.show { opacity:1; visibility:visible; transform:translateY(0); }
-        .dropdown-username { padding:8px 16px; font-size:0.82rem; border-bottom:1px solid #f0ebe0; }
-        .dropdown-logout { width:100%; padding:9px 16px; border:none; background:none; color:#c0392b; cursor:pointer; }
+        .user-avatar { width:44px; height:44px; border-radius:50%; background:#e8c9b8; border:2.5px solid #e8c9b8; cursor:pointer; display:flex; align-items:center; justify-content:center; font-weight:600; color:#fff; box-shadow:0 2px 10px rgba(60,50,40,0.1); }
+        .user-avatar img { width:100%; height:100%; border-radius:50%; object-fit:cover; }
+        .avatar-dropdown { position:absolute; top:52px; right:0; background:#fff; border-radius:14px; box-shadow:0 6px 24px rgba(0,0,0,0.15); padding:6px 0; min-width:120px; opacity:0; visibility:hidden; pointer-events:none; transform:translateY(-8px); transition:0.25s; }
+        .avatar-dropdown.show { opacity:1; visibility:visible; pointer-events:auto; transform:translateY(0); }
+        .dropdown-username { padding:8px 16px; font-size:0.82rem; border-bottom:1px solid #f0ebe0; text-align:center; }
+        .dropdown-logout { width:100%; padding:9px 16px; font-size:0.8rem; border:none; background:none; color:#c0392b; font-weight:600; cursor:pointer; }
+        .dropdown-logout:hover { background:#fef0ef; }
         .input-wrapper { display:flex; gap:8px; margin-bottom:14px; }
-        .todo-input { flex:1; padding:12px 15px; border:1.5px solid #e7e0d8; border-radius:16px; font-size:0.9rem; background:#fdfcf9; outline:none; }
-        .todo-input:focus { border-color:#c27b5c; box-shadow:0 0 0 4px rgba(194,123,92,0.07); }
-        .add-btn { width:42px; height:42px; border-radius:50%; background:#c27b5c; color:#fff; border:none; font-size:1.3rem; cursor:pointer; }
+        .todo-input { flex:1; padding:12px 15px; border:1.5px solid #e7e0d8; border-radius:16px; font-size:0.9rem; background:#fdfcf9; }
+        .add-btn { width:42px; height:42px; border-radius:50%; background:#c27b5c; color:#fff; border:none; font-size:1.3rem; cursor:pointer; box-shadow:0 2px 8px rgba(194,123,92,0.25); }
         .todo-list { list-style:none; display:flex; flex-direction:column; gap:3px; min-height:40px; }
-        .todo-item { display:flex; align-items:flex-start; gap:10px; padding:9px 10px 9px 12px; border-radius:12px; background:transparent; border:1px solid transparent; transition:0.25s; }
+        .todo-item { display:flex; align-items:flex-start; gap:10px; padding:9px 12px; border-radius:12px; border:1px solid transparent; }
         .todo-item:hover { background:#fdfaf6; border-color:#f0e8dc; }
-        .check-circle { flex-shrink:0; width:20px; height:20px; border-radius:50%; border:2px solid #d5ccc0; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:0.35s; }
+        .check-circle { width:20px; height:20px; border-radius:50%; border:2px solid #d5ccc0; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px; }
         .check-circle.completed { background:#c27b5c; border-color:#c27b5c; }
-        .check-mark { font-size:0.6rem; color:#fff; opacity:0; transform:scale(0); transition:0.4s; }
-        .check-circle.completed .check-mark { opacity:1; transform:scale(1); }
+        .check-mark { font-size:0.6rem; color:#fff; opacity:0; }
+        .check-circle.completed .check-mark { opacity:1; }
         .todo-content { flex:1; }
-        .todo-text { font-size:0.9rem; color:#3e3a35; word-break:break-word; }
+        .todo-text { font-size:0.9rem; word-break:break-word; }
         .completed-item .todo-text { color:#b5ada2; text-decoration:line-through; }
-        .todo-date { font-size:0.65rem; color:#b5ada2; }
-        .delete-btn { width:34px; height:34px; border-radius:50%; border:none; background:transparent; color:#c5bdb0; cursor:pointer; opacity:0.35; transition:0.2s; }
+        .todo-date { font-size:0.65rem; color:#b5ada2; display:flex; align-items:center; gap:4px; }
+        .date-dot { width:4px; height:4px; border-radius:50%; background:#d5ccc0; }
+        .delete-btn { width:34px; height:34px; border-radius:50%; border:none; background:transparent; color:#c5bdb0; font-size:1rem; cursor:pointer; opacity:0.4; flex-shrink:0; transition:0.2s; }
         .todo-item:hover .delete-btn { opacity:1; }
+        .delete-btn:hover { background:#fce8e4; color:#d4786b; box-shadow:0 3px 12px rgba(200,100,80,0.25); transform:scale(1.1); }
         .pagination { display:flex; gap:4px; justify-content:center; padding:8px 0; }
-        .pagination.hidden-pagination { display:none; }
-        .page-btn { min-width:28px; height:28px; border-radius:50%; border:1.5px solid transparent; background:transparent; color:#8c857b; cursor:pointer; }
-        .page-btn.active { background:#c27b5c; color:#fff; }
+        .page-btn { min-width:28px; height:28px; border-radius:50%; border:1.5px solid transparent; background:transparent; color:#8c857b; cursor:pointer; font-size:0.78rem; }
+        .page-btn.active { background:#c27b5c; color:#fff; border-color:#c27b5c; }
         .app-footer { display:flex; justify-content:space-between; padding-top:8px; margin-top:6px; border-top:1px solid #f0ebe0; font-size:0.78rem; color:#8c857b; }
-        .particle { position:fixed; pointer-events:none; z-index:9999; border-radius:50%; animation:particleFly var(--duration) cubic-bezier(0.25,0.7,0.4,1) forwards; }
-        @keyframes particleFly { 0%{ transform:translate(0,0) scale(1); opacity:1; } 100%{ transform:translate(var(--dx), var(--dy)) scale(0.05); opacity:0; } }
+        .hidden-pagination { display:none; }
+        /* 粒子效果 */
+        .particle { position:fixed; pointer-events:none; z-index:9999; border-radius:50%; animation:fly var(--duration) ease-out forwards; }
+        @keyframes fly { 0%{transform:translate(0,0) scale(1);opacity:1} 100%{transform:translate(var(--dx),var(--dy)) scale(0);opacity:0} }
     </style>
 </head>
 <body>
-    <div class="app-shell">
-        <div class="auth-card" id="authCard">
-            <div class="auth-title" id="authTitle">登录</div>
-            <div class="auth-sub" id="authSub">欢迎回来，继续管理你的待办</div>
-            <input type="email" class="input-field" id="email" placeholder="邮箱" autocomplete="email">
-            <input type="password" class="input-field" id="password" placeholder="密码">
-            <div class="error-msg" id="errorMsg"></div>
-            <button class="btn" id="authBtn">登 录</button>
-            <div class="auth-switch">
-                还没有账号？<a href="#" id="switchLink">立即注册</a>
-            </div>
-        </div>
-
-        <div class="main-app" id="mainApp">
-            <div class="app-container">
-                <header class="app-header">
-                    <h1 class="app-title">待办清单 <span class="dot"></span></h1>
-                </header>
-                <div class="datetime-row">
-                    <div class="datetime-info">
-                        <div class="date-display"><span id="dateText">加载中…</span></div>
-                        <div class="time-display"><span id="hours">00</span>:<span id="minutes">00</span></div>
-                        <span class="weekday-badge" id="weekdayBadge">今天</span>
-                    </div>
-                    <div class="user-avatar-wrapper" id="userAvatarWrapper">
-                        <div class="user-avatar" id="userAvatar">?</div>
-                        <div class="avatar-dropdown" id="avatarDropdown">
-                            <div class="dropdown-username" id="dropdownUsername">用户</div>
-                            <button class="dropdown-logout" id="dropdownLogout">退出登录</button>
-                        </div>
-                    </div>
-                    <input type="file" id="avatarFileInput" accept="image/*" style="display:none">
-                </div>
-                <div class="input-wrapper">
-                    <input type="text" class="todo-input" placeholder="写点什么吧…" maxlength="200">
-                    <button class="add-btn">+</button>
-                </div>
-                <ul class="todo-list"></ul>
-                <div class="pagination hidden-pagination">
-                    <button class="page-btn nav-btn prev-btn">‹</button>
-                    <span class="page-numbers" style="display:flex;gap:3px;"></span>
-                    <button class="page-btn nav-btn next-btn">›</button>
-                </div>
-                <footer class="app-footer">
-                    <span class="task-count">剩余 <strong>0</strong> 项 · 共 0 条</span>
-                </footer>
-            </div>
-        </div>
+<div class="app-shell">
+    <!-- 登录/注册 -->
+    <div class="auth-card" id="authCard">
+        <div class="auth-title" id="authTitle">登录</div>
+        <div class="auth-sub" id="authSub">同步待办，多设备共享</div>
+        <input type="text" class="input-field" id="username" placeholder="用户名" autocomplete="off">
+        <input type="password" class="input-field" id="password" placeholder="密码">
+        <div class="error-msg" id="errorMsg"></div>
+        <button class="btn" id="authBtn">登 录</button>
+        <div class="auth-switch">还没有账号？<a id="switchLink">立即注册</a></div>
     </div>
 
-    <script>
-        // ==================== 你的 Supabase 配置（替换这里） ====================
-        const SUPABASE_URL = 'https://xxxxxxxxxxxx.supabase.co';
-        const SUPABASE_KEY = 'eyJxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
-        // ====================================================================
-
-        const { createClient } = supabase;
-        const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-
-        // 全局状态
-        let currentUser = null;
-        let todos = [];
-        let currentPage = 1;
-        const PAGE_SIZE = 7;
-        let clockInterval = null;
-
-        // ==================== 界面元素 ====================
-        const authCard = document.getElementById('authCard');
-        const mainApp = document.getElementById('mainApp');
-        const authBtn = document.getElementById('authBtn');
-        const switchLink = document.getElementById('switchLink');
-        const emailInput = document.getElementById('email');
-        const passwordInput = document.getElementById('password');
-        const errorMsg = document.getElementById('errorMsg');
-        const authTitle = document.getElementById('authTitle');
-        const authSub = document.getElementById('authSub');
-
-        const todoList = document.querySelector('.todo-list');
-        const todoInput = document.querySelector('.todo-input');
-        const addBtn = document.querySelector('.add-btn');
-        const prevBtn = document.querySelector('.prev-btn');
-        const nextBtn = document.querySelector('.next-btn');
-        const pageNumbers = document.querySelector('.page-numbers');
-        const pagination = document.querySelector('.pagination');
-        const taskCount = document.querySelector('.task-count');
-        const dateText = document.getElementById('dateText');
-        const hoursEl = document.getElementById('hours');
-        const minutesEl = document.getElementById('minutes');
-        const weekdayBadge = document.getElementById('weekdayBadge');
-
-        const userAvatar = document.getElementById('userAvatar');
-        const dropdownUsername = document.getElementById('dropdownUsername');
-        const avatarDropdown = document.getElementById('avatarDropdown');
-        const avatarFileInput = document.getElementById('avatarFileInput');
-        const dropdownLogout = document.getElementById('dropdownLogout');
-
-        let isLoginMode = true;
-
-        // ==================== 认证逻辑 ====================
-        switchLink.addEventListener('click', (e) => {
-            e.preventDefault();
-            isLoginMode = !isLoginMode;
-            if (isLoginMode) {
-                authTitle.textContent = '登录';
-                authSub.textContent = '欢迎回来，继续管理你的待办';
-                authBtn.textContent = '登 录';
-                switchLink.textContent = '立即注册';
-            } else {
-                authTitle.textContent = '注册';
-                authSub.textContent = '创建一个新账号开始使用';
-                authBtn.textContent = '注 册';
-                switchLink.textContent = '已有账号？登录';
-            }
-            errorMsg.textContent = '';
-        });
-
-        authBtn.addEventListener('click', async () => {
-            const email = emailInput.value.trim();
-            const password = passwordInput.value;
-            if (!email || !password) {
-                errorMsg.textContent = '邮箱和密码不能为空';
-                return;
-            }
-            if (password.length < 6) {
-                errorMsg.textContent = '密码至少6个字符';
-                return;
-            }
-
-            if (isLoginMode) {
-                const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-                if (error) {
-                    errorMsg.textContent = error.message;
-                } else {
-                    currentUser = data.user;
-                    afterLogin();
-                }
-            } else {
-                const { data, error } = await supabase.auth.signUp({ email, password });
-                if (error) {
-                    errorMsg.textContent = error.message;
-                } else {
-                    errorMsg.textContent = '注册成功！已自动登录。';
-                    currentUser = data.user;
-                    // 为新用户创建 profile 记录
-                    await supabase.from('profiles').insert({ id: currentUser.id });
-                    afterLogin();
-                }
-            }
-        });
-
-        dropdownLogout.addEventListener('click', async () => {
-            await supabase.auth.signOut();
-            hideMainApp();
-        });
-
-        // ==================== 界面切换 ====================
-        function hideMainApp() {
-            mainApp.classList.remove('active');
-            authCard.classList.remove('hidden');
-            if (clockInterval) clearInterval(clockInterval);
-            currentUser = null;
-        }
-
-        async function afterLogin() {
-            authCard.classList.add('hidden');
-            mainApp.classList.add('active');
-            // 更新头像显示
-            await loadProfile();
-            // 加载待办
-            await loadTodos();
-            // 启动时钟
-            updateClock();
-            clockInterval = setInterval(updateClock, 1000);
-            todoInput.focus();
-        }
-
-        // ==================== 用户头像相关 ====================
-        async function loadProfile() {
-            dropdownUsername.textContent = currentUser.email;
-            // 从 profiles 表获取头像 URL
-            const { data, error } = await supabase
-                .from('profiles')
-                .select('avatar_url')
-                .eq('id', currentUser.id)
-                .single();
-            if (!error && data && data.avatar_url) {
-                userAvatar.style.backgroundImage = `url(${data.avatar_url})`;
-                userAvatar.style.backgroundSize = 'cover';
-                userAvatar.style.backgroundPosition = 'center';
-                userAvatar.style.backgroundColor = 'transparent';
-                userAvatar.textContent = '';
-            } else {
-                // 默认头像：用邮箱首字母大写
-                userAvatar.style.backgroundImage = '';
-                userAvatar.style.backgroundColor = getColorFromEmail(currentUser.email);
-                userAvatar.textContent = currentUser.email.charAt(0).toUpperCase();
-            }
-        }
-
-        function getColorFromEmail(email) {
-            let hash = 0;
-            for (let i = 0; i < email.length; i++) {
-                hash = email.charCodeAt(i) + ((hash << 5) - hash);
-                hash = hash & hash;
-            }
-            const hue = Math.abs(hash % 360);
-            return `hsl(${hue}, 45%, 55%)`;
-        }
-
-        // 头像上传
-        userAvatar.addEventListener('click', (e) => {
-            e.stopPropagation();
-            avatarFileInput.click();
-        });
-        avatarFileInput.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            if (!file.type.startsWith('image/')) {
-                alert('请选择图片文件');
-                return;
-            }
-            // 压缩图片
-            const base64 = await compressImage(file, 200, 200);
-            // 上传到 Supabase Storage
-            const filePath = `${currentUser.id}/avatar_${Date.now()}.jpg`;
-            const { error: uploadError } = await supabase.storage
-                .from('avatars')
-                .upload(filePath, dataURLtoBlob(base64), {
-                    contentType: 'image/jpeg',
-                    upsert: true
-                });
-            if (uploadError) {
-                alert('上传失败：' + uploadError.message);
-                return;
-            }
-            // 获取公开 URL
-            const { data: urlData } = supabase.storage
-                .from('avatars')
-                .getPublicUrl(filePath);
-            const avatarUrl = urlData.publicUrl;
-            // 更新 profiles 表
-            await supabase.from('profiles').upsert({ id: currentUser.id, avatar_url: avatarUrl });
-            // 更新界面
-            userAvatar.style.backgroundImage = `url(${avatarUrl})`;
-            userAvatar.style.backgroundSize = 'cover';
-            userAvatar.style.backgroundPosition = 'center';
-            userAvatar.style.backgroundColor = 'transparent';
-            userAvatar.textContent = '';
-            avatarFileInput.value = '';
-        });
-
-        function compressImage(file, maxW, maxH) {
-            return new Promise((resolve) => {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const img = new Image();
-                    img.onload = () => {
-                        const canvas = document.createElement('canvas');
-                        let w = img.width, h = img.height;
-                        if (w > maxW) { h *= maxW / w; w = maxW; }
-                        if (h > maxH) { w *= maxH / h; h = maxH; }
-                        canvas.width = w;
-                        canvas.height = h;
-                        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-                        resolve(canvas.toDataURL('image/jpeg', 0.7));
-                    };
-                    img.src = e.target.result;
-                };
-                reader.readAsDataURL(file);
-            });
-        }
-
-        function dataURLtoBlob(dataurl) {
-            const arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1],
-                bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
-            while (n--) u8arr[n] = bstr.charCodeAt(n);
-            return new Blob([u8arr], { type: mime });
-        }
-
-        // 头像下拉菜单
-        document.getElementById('userAvatarWrapper').addEventListener('click', (e) => {
-            e.stopPropagation();
-            avatarDropdown.classList.toggle('show');
-        });
-        document.addEventListener('click', (e) => {
-            if (!document.getElementById('userAvatarWrapper').contains(e.target))
-                avatarDropdown.classList.remove('show');
-        });
-
-        // ==================== 待办数据操作 ====================
-        async function loadTodos() {
-            const { data, error } = await supabase
-                .from('todos')
-                .select('*')
-                .eq('user_id', currentUser.id)
-                .order('created_at', { ascending: false });
-            if (error) {
-                console.error('加载待办失败：', error);
-                todos = [];
-            } else {
-                todos = data.map(t => ({
-                    id: t.id,
-                    text: t.text,
-                    completed: t.completed,
-                    createdAt: t.created_at
-                }));
-            }
-            renderPage();
-        }
-
-        async function addTodo() {
-            const text = todoInput.value.trim();
-            if (!text) return;
-            const { error } = await supabase.from('todos').insert({
-                user_id: currentUser.id,
-                text: text,
-                completed: false
-            });
-            if (error) {
-                alert('添加失败：' + error.message);
-                return;
-            }
-            todoInput.value = '';
-            await loadTodos();
-            currentPage = 1;
-            renderPage();
-        }
-
-        async function toggleTodo(todo) {
-            const { error } = await supabase
-                .from('todos')
-                .update({ completed: !todo.completed })
-                .eq('id', todo.id);
-            if (error) {
-                alert('更新失败：' + error.message);
-                return;
-            }
-            // 粒子特效在渲染前触发
-            if (!todo.completed) {
-                const el = document.querySelector(`[data-id="${todo.id}"] .check-circle`);
-                if (el) spawnParticles(el, 'complete');
-            }
-            await loadTodos();
-        }
-
-        async function deleteTodo(todoId) {
-            const el = document.querySelector(`[data-id="${todoId}"] .delete-btn`);
-            if (el) spawnParticles(el, 'delete');
-            await supabase.from('todos').delete().eq('id', todoId);
-            await loadTodos();
-        }
-
-        // ==================== 分页 & 渲染 ====================
-        function renderPage() {
-            const totalPages = Math.max(1, Math.ceil(todos.length / PAGE_SIZE));
-            if (currentPage > totalPages) currentPage = totalPages;
-            const start = (currentPage - 1) * PAGE_SIZE;
-            const pageData = todos.slice(start, start + PAGE_SIZE);
-
-            todoList.innerHTML = '';
-            pageData.forEach(t => {
-                const li = document.createElement('li');
-                li.className = 'todo-item' + (t.completed ? ' completed-item' : '');
-                li.setAttribute('data-id', t.id);
-                li.innerHTML = `
-                    <button class="check-circle${t.completed ? ' completed' : ''}">
-                        <span class="check-mark">✓</span>
-                    </button>
-                    <div class="todo-content">
-                        <span class="todo-text">${escapeHtml(t.text)}</span>
-                        <span class="todo-date">${formatDate(t.createdAt)}</span>
+    <!-- 主应用 -->
+    <div class="main-app" id="mainApp">
+        <div class="app-container">
+            <header class="app-header"><h1 class="app-title">待办清单 <span class="dot"></span></h1></header>
+            <div class="datetime-row">
+                <div class="date-display"><span>📅</span> <span id="dateText"></span></div>
+                <div class="time-display"><span id="hours">00</span>:<span id="minutes">00</span></div>
+                <span class="weekday-badge" id="weekdayBadge"></span>
+                <div style="position:relative; margin-left:auto;">
+                    <div class="user-avatar" id="userAvatar">?</div>
+                    <div class="avatar-dropdown" id="avatarDropdown">
+                        <div class="dropdown-username" id="dropdownUsername"></div>
+                        <button class="dropdown-logout" id="dropdownLogout">退出登录</button>
                     </div>
-                    <button class="delete-btn">×</button>
-                `;
-                li.querySelector('.check-circle').addEventListener('click', () => toggleTodo(t));
-                li.querySelector('.delete-btn').addEventListener('click', () => deleteTodo(t.id));
-                todoList.appendChild(li);
-            });
+                </div>
+            </div>
+            <div class="input-wrapper">
+                <input type="text" class="todo-input" placeholder="写点什么吧…" maxlength="200">
+                <button class="add-btn">+</button>
+            </div>
+            <ul class="todo-list"></ul>
+            <div class="pagination hidden-pagination">
+                <button class="page-btn nav-btn prev-btn">‹</button>
+                <span class="page-numbers" style="display:flex;gap:3px;"></span>
+                <button class="page-btn nav-btn next-btn">›</button>
+            </div>
+            <footer class="app-footer">
+                <span class="task-count">剩余 <strong>0</strong> 项</span>
+            </footer>
+        </div>
+    </div>
+</div>
 
-            // 分页按钮
-            pageNumbers.innerHTML = '';
-            if (totalPages <= 1) {
-                pagination.classList.add('hidden-pagination');
+<script>
+    // ==================== 配置 Supabase ====================
+    const SUPABASE_URL = 'https://ltuqtpgkmuqbbfcssvti.supabase.co/rest/v1/';      // 替换
+    const SUPABASE_ANON_KEY = 'sb_publishable_xYRf0yvSgmN6pG1AJOyDFw_cOCGIcx5';               // 替换
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // ==================== UI 引用 ====================
+    const authCard = document.getElementById('authCard');
+    const mainApp = document.getElementById('mainApp');
+    const authTitle = document.getElementById('authTitle');
+    const authSub = document.getElementById('authSub');
+    const authBtn = document.getElementById('authBtn');
+    const switchLink = document.getElementById('switchLink');
+    const usernameInput = document.getElementById('username');
+    const passwordInput = document.getElementById('password');
+    const errorMsg = document.getElementById('errorMsg');
+    let isLoginMode = true;
+
+    switchLink.addEventListener('click', () => {
+        isLoginMode = !isLoginMode;
+        authTitle.textContent = isLoginMode ? '登录' : '注册';
+        authSub.textContent = isLoginMode ? '同步待办，多设备共享' : '创建账号，开始使用';
+        authBtn.textContent = isLoginMode ? '登 录' : '注 册';
+        switchLink.textContent = isLoginMode ? '立即注册' : '已有账号？登录';
+        errorMsg.textContent = '';
+    });
+
+    // ==================== 时钟 ====================
+    function updateClock() {
+        const now = new Date();
+        document.getElementById('dateText').textContent = `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日`;
+        document.getElementById('hours').textContent = String(now.getHours()).padStart(2,'0');
+        document.getElementById('minutes').textContent = String(now.getMinutes()).padStart(2,'0');
+        document.getElementById('weekdayBadge').textContent = ['星期日','星期一','星期二','星期三','星期四','星期五','星期六'][now.getDay()];
+    }
+    let clockTimer = null;
+    function startClock() { updateClock(); clockTimer = setInterval(updateClock, 1000); }
+    function stopClock() { if(clockTimer) clearInterval(clockTimer); }
+
+    // ==================== 粒子特效 ====================
+    function spawnParticles(el, type='complete') {
+        const rect = el.getBoundingClientRect();
+        const x = rect.left + rect.width/2, y = rect.top + rect.height/2;
+        const colors = type==='complete' ? ['#e8b86d','#f0c78e','#c27b5c','#ffe0b2'] : ['#e07b6e','#d4786b'];
+        for(let i=0;i<10;i++) {
+            const p = document.createElement('div'); p.className='particle';
+            const angle = Math.random()*Math.PI*2, dist = 20+Math.random()*40;
+            p.style.cssText = `left:${x}px;top:${y}px;width:4px;height:4px;background:${colors[Math.floor(Math.random()*colors.length)]};--dx:${Math.cos(angle)*dist}px;--dy:${Math.sin(angle)*dist}px;--duration:${400+Math.random()*300}ms;`;
+            document.body.appendChild(p);
+            p.addEventListener('animationend',()=>p.remove());
+        }
+    }
+
+    // ==================== 当前用户状态 ====================
+    let currentUser = null;
+
+    // 登录/注册处理
+    authBtn.addEventListener('click', async () => {
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value.trim();
+        if(!username || !password) { errorMsg.textContent='用户名和密码不能为空'; return; }
+        const email = `${username}@todo.local`;
+        try {
+            if(isLoginMode) {
+                const { error } = await supabase.auth.signInWithPassword({ email, password });
+                if(error) throw error;
             } else {
-                pagination.classList.remove('hidden-pagination');
-                for (let i = 1; i <= totalPages; i++) {
-                    const btn = document.createElement('button');
-                    btn.className = 'page-btn' + (i === currentPage ? ' active' : '');
-                    btn.textContent = i;
-                    btn.onclick = () => { currentPage = i; renderPage(); };
-                    pageNumbers.appendChild(btn);
-                }
+                const { error } = await supabase.auth.signUp({ email, password });
+                if(error) throw error;
+                // 注册后可能直接登录
             }
-            prevBtn.disabled = currentPage <= 1;
-            nextBtn.disabled = currentPage >= totalPages;
-
-            const remaining = todos.filter(t => !t.completed).length;
-            taskCount.innerHTML = `剩余 <strong>${remaining}</strong> 项 · 共 ${todos.length} 条`;
+            // 成功后获取用户
+            const { data: { user } } = await supabase.auth.getUser();
+            if(user) showMainApp(user);
+        } catch(e) {
+            errorMsg.textContent = e.message || '登录失败';
         }
+    });
 
-        function formatDate(iso) {
-            const d = new Date(iso);
-            return (d.getMonth()+1) + '.' + d.getDate().toString().padStart(2,'0');
+    // 检查当前登录状态
+    async function checkSession() {
+        const { data: { user } } = await supabase.auth.getUser();
+        if(user) showMainApp(user);
+        // 否则停留在登录页
+    }
+
+    function showMainApp(user) {
+        currentUser = user;
+        authCard.classList.add('hidden');
+        mainApp.classList.add('active');
+        startClock();
+        initTodoApp(user);
+    }
+
+    // 退出登录
+    document.getElementById('dropdownLogout').addEventListener('click', async () => {
+        await supabase.auth.signOut();
+        stopClock();
+        mainApp.classList.remove('active');
+        authCard.classList.remove('hidden');
+        currentUser = null;
+        document.querySelector('.todo-list').innerHTML = '';
+        document.getElementById('avatarDropdown').classList.remove('show');
+    });
+
+    // 头像区域
+    const userAvatar = document.getElementById('userAvatar');
+    const avatarDropdown = document.getElementById('avatarDropdown');
+    userAvatar.parentElement.addEventListener('click', (e) => {
+        e.stopPropagation();
+        avatarDropdown.classList.toggle('show');
+    });
+    document.addEventListener('click', () => avatarDropdown.classList.remove('show'));
+
+    // ==================== 待办核心逻辑 ====================
+    const PAGE_SIZE = 7;
+    let todos = [], currentPage = 1;
+
+    function initTodoApp(user) {
+        const dropdownUsername = document.getElementById('dropdownUsername');
+        dropdownUsername.textContent = user.email.split('@')[0]; // 显示用户名
+        // 头像用首字母
+        const initial = user.email.charAt(0).toUpperCase();
+        userAvatar.textContent = initial;
+        userAvatar.style.background = getColorFromUsername(user.email);
+
+        // 监听数据库变化
+        const channel = supabase
+            .channel('todos-changes')
+            .on('postgres_changes', 
+                { event: '*', schema: 'public', table: 'todos', filter: `user_id=eq.${user.id}` },
+                () => loadTodos() // 任何变化重新加载
+            )
+            .subscribe();
+
+        // 首次加载
+        loadTodos();
+
+        // 绑定添加按钮
+        const addBtn = document.querySelector('.add-btn');
+        const todoInput = document.querySelector('.todo-input');
+        addBtn.onclick = () => {
+            const text = todoInput.value.trim();
+            if(text) { addTodo(text); todoInput.value = ''; }
+        };
+        todoInput.onkeydown = (e) => { if(e.key==='Enter') addBtn.click(); };
+
+        // 分页按钮
+        document.querySelector('.prev-btn').onclick = () => { if(currentPage>1) { currentPage--; renderPage(); } };
+        document.querySelector('.next-btn').onclick = () => { 
+            const total = Math.ceil(todos.length/PAGE_SIZE);
+            if(currentPage<total) { currentPage++; renderPage(); }
+        };
+
+        // 清理函数
+        return () => supabase.removeChannel(channel);
+    }
+
+    async function loadTodos() {
+        if(!currentUser) return;
+        const { data, error } = await supabase
+            .from('todos')
+            .select('*')
+            .eq('user_id', currentUser.id)
+            .order('created_at', { ascending: false });
+        if(!error) {
+            todos = data || [];
+            renderPage();
         }
+    }
 
-        function escapeHtml(str) {
-            const div = document.createElement('div');
-            div.textContent = str;
-            return div.innerHTML;
-        }
+    async function addTodo(text) {
+        if(!currentUser) return;
+        await supabase.from('todos').insert([{ user_id: currentUser.id, text }]);
+        // 加载会由实时订阅触发，但也可手动触发
+    }
 
-        // ==================== 粒子特效（保留原样） ====================
-        function spawnParticles(el, type) {
-            const rect = el.getBoundingClientRect();
-            const cx = rect.left + rect.width/2;
-            const cy = rect.top + rect.height/2;
-            const colors = type === 'complete' ?
-                ['#e8b86d','#f0c78e','#d4a55a','#f5d5a8','#c27b5c'] :
-                ['#e07b6e','#f0a098','#d4786b'];
-            for (let i=0; i<10; i++) {
-                const p = document.createElement('div');
-                p.className = 'particle';
-                const angle = Math.random()*Math.PI*2;
-                const dist = 20+Math.random()*40;
-                p.style.cssText = `
-                    left:${cx}px; top:${cy}px;
-                    width:${3+Math.random()*4}px; height:${3+Math.random()*4}px;
-                    background:${colors[Math.floor(Math.random()*colors.length)]};
-                    --dx:${Math.cos(angle)*dist}px;
-                    --dy:${Math.sin(angle)*dist}px;
-                    --duration:${400+Math.random()*300}ms;
-                    animation-duration:${400+Math.random()*300}ms;
-                `;
-                p.addEventListener('animationend', () => p.remove());
-                document.body.appendChild(p);
+    async function toggleTodo(id, completed) {
+        await supabase.from('todos').update({ completed: !completed }).eq('id', id);
+    }
+
+    async function deleteTodo(id) {
+        await supabase.from('todos').delete().eq('id', id);
+    }
+
+    function renderPage() {
+        const list = document.querySelector('.todo-list');
+        const totalPages = Math.ceil(todos.length / PAGE_SIZE);
+        if(currentPage > totalPages) currentPage = totalPages;
+        const start = (currentPage-1)*PAGE_SIZE;
+        const pageData = todos.slice(start, start+PAGE_SIZE);
+
+        list.innerHTML = '';
+        pageData.forEach(t => {
+            const li = document.createElement('li');
+            li.className = 'todo-item' + (t.completed ? ' completed-item' : '');
+            li.innerHTML = `
+                <div class="check-circle${t.completed?' completed':''}" data-id="${t.id}">
+                    <span class="check-mark">✓</span>
+                </div>
+                <div class="todo-content">
+                    <span class="todo-text">${escapeHtml(t.text)}</span>
+                    <span class="todo-date"><span class="date-dot"></span>${formatDate(t.created_at)}</span>
+                </div>
+                <button class="delete-btn" data-id="${t.id}">×</button>
+            `;
+            // 完成切换
+            li.querySelector('.check-circle').addEventListener('click', function(e) {
+                e.stopPropagation();
+                spawnParticles(this, 'complete');
+                toggleTodo(t.id, t.completed);
+            });
+            // 删除
+            li.querySelector('.delete-btn').addEventListener('click', function(e) {
+                e.stopPropagation();
+                spawnParticles(this, 'delete');
+                deleteTodo(t.id);
+            });
+            list.appendChild(li);
+        });
+
+        // 分页UI
+        const pagination = document.querySelector('.pagination');
+        const pageNumbers = document.querySelector('.page-numbers');
+        pageNumbers.innerHTML = '';
+        if(totalPages <= 1) {
+            pagination.classList.add('hidden-pagination');
+        } else {
+            pagination.classList.remove('hidden-pagination');
+            for(let i=1;i<=totalPages;i++) {
+                const btn = document.createElement('button');
+                btn.className = 'page-btn' + (i===currentPage?' active':'');
+                btn.textContent = i;
+                btn.addEventListener('click', () => { currentPage=i; renderPage(); });
+                pageNumbers.appendChild(btn);
             }
         }
+        document.querySelector('.prev-btn').disabled = currentPage <= 1;
+        document.querySelector('.next-btn').disabled = currentPage >= totalPages;
 
-        // ==================== 时钟 ====================
-        function updateClock() {
-            const now = new Date();
-            dateText.textContent = now.getFullYear()+'年'+(now.getMonth()+1)+'月'+now.getDate()+'日';
-            hoursEl.textContent = now.getHours().toString().padStart(2,'0');
-            minutesEl.textContent = now.getMinutes().toString().padStart(2,'0');
-            const w = ['星期日','星期一','星期二','星期三','星期四','星期五','星期六'];
-            weekdayBadge.textContent = w[now.getDay()];
-        }
+        const remaining = todos.filter(t=>!t.completed).length;
+        document.querySelector('.task-count').innerHTML = `剩余 <strong>${remaining}</strong> 项 · 共 ${todos.length} 条`;
+    }
 
-        // ==================== 事件绑定 ====================
-        addBtn.addEventListener('click', addTodo);
-        todoInput.addEventListener('keydown', e => { if (e.key==='Enter') addTodo(); });
-        prevBtn.addEventListener('click', () => { if(currentPage>1){ currentPage--; renderPage(); } });
-        nextBtn.addEventListener('click', () => { if(currentPage<Math.ceil(todos.length/PAGE_SIZE)){ currentPage++; renderPage(); } });
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
 
-        // 自动恢复会话
-        (async () => {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (session) {
-                currentUser = session.user;
-                afterLogin();
-            }
-        })();
-    </script>
+    function formatDate(isoString) {
+        const d = new Date(isoString);
+        return (d.getMonth()+1) + '.' + d.getDate().toString().padStart(2,'0');
+    }
+
+    function getColorFromUsername(str) {
+        let hash = 0;
+        for(let i=0;i<str.length;i++) { hash = str.charCodeAt(i) + ((hash<<5)-hash); }
+        return `hsl(${hash%360}, 40%, 55%)`;
+    }
+
+    // 启动时检查会话
+    checkSession();
+</script>
 </body>
 </html>
