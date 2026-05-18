@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>待办清单 · 醒目颜色版</title>
+    <title>待办清单 · 颜色修复版</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
+        /* 样式保持一致，省略以节省篇幅，直接使用上个版本的完整样式 */
         * { margin:0; padding:0; box-sizing:border-box; }
         body {
             font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
@@ -133,7 +134,6 @@
             border-color:#e8d5c5;
             box-shadow:0 2px 12px rgba(0,0,0,0.06);
         }
-        /* 悬停叠加层 */
         .todo-item::after {
             content:''; position:absolute; inset:0; border-radius:12px;
             background:transparent; transition:0.25s; pointer-events:none; z-index:0;
@@ -294,6 +294,7 @@
     var defaultColor = '#e74c3c';
     var selectedColor = defaultColor;
 
+    // UI 元素
     var authCard = document.getElementById('authCard');
     var mainApp = document.getElementById('mainApp');
     var authTitle = document.getElementById('authTitle');
@@ -332,7 +333,7 @@
     var channel = null;
     var editingId = null;
 
-    // ==================== 颜色面板 ====================
+    // ==================== 颜色面板函数 ====================
     function buildColorPanel() {
         colorPanel.innerHTML = '';
         presetColors.forEach(function(preset) {
@@ -378,7 +379,7 @@
             return 'linear-gradient(to right, #d5cdc2 0%, #d5cdc2 12px, rgba(200,190,175,0.22) 12px, rgba(200,190,175,0.07) 55%, transparent 80%)';
         }
         var r, g, b;
-        if (color.startsWith('#')) {
+        if (color && color.startsWith('#')) {
             var hex = color.slice(1);
             if (hex.length === 3) {
                 r = parseInt(hex[0]+hex[0], 16);
@@ -390,10 +391,10 @@
                 b = parseInt(hex.slice(4,6), 16);
             }
         } else { r=200; g=180; b=160; }
-        return 'linear-gradient(to right, ' + color + ' 0%, ' + color + ' 12px, rgba('+r+','+g+','+b+',0.22) 12px, rgba('+r+','+g+','+b+',0.07) 55%, transparent 80%)';
+        return 'linear-gradient(to right, ' + (color || defaultColor) + ' 0%, ' + (color || defaultColor) + ' 12px, rgba('+r+','+g+','+b+',0.22) 12px, rgba('+r+','+g+','+b+',0.07) 55%, transparent 80%)';
     }
 
-    // ==================== 登录/注册 ====================
+    // ==================== 界面切换 ====================
     switchLink.addEventListener('click', function() {
         isLoginMode = !isLoginMode;
         authTitle.textContent = isLoginMode ? '登录' : '注册';
@@ -491,11 +492,13 @@
         });
     }
 
+    // 核心：加载数据，确保color字段被读取
     async function loadTodos() {
         if(!currentUser) return;
         var res = await supabaseClient.from('todos').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: false });
         if(res.error) { console.error(res.error); return; }
         todos = sortTodos(res.data || []);
+        console.log('Loaded todos:', todos); // 调试日志：查看是否有color字段
         renderPage();
     }
 
@@ -537,19 +540,29 @@
 
     function startEdit(todoId) { editingId = todoId; renderPage(); setTimeout(function() { var inp = document.querySelector('.edit-input'); if(inp) inp.focus(); }, 50); }
 
-    async function saveEdit(todo, newText, newColor) {
-        var oldText = todo.text, oldColor = todo.color;
-        if(newText.trim() === '') { editingId = null; renderPage(); return; }
-        todo.text = newText.trim();
-        if(newColor) todo.color = newColor;
+    // 修改保存逻辑：颜色从todo对象本身获取
+    async function saveEdit(todo) {
+        var input = document.querySelector('.edit-input[data-id="'+todo.id+'"]');
+        if(!input) return;
+        var newText = input.value.trim();
+        if(newText === '') { editingId = null; renderPage(); return; }
+        var oldText = todo.text;
+        var oldColor = todo.color;
+        todo.text = newText;
         editingId = null;
         renderPage();
         try {
-            var updateData = { text: todo.text };
-            if(newColor) updateData.color = newColor;
+            var updateData = { text: todo.text, color: todo.color };
+            console.log('Updating todo:', todo.id, updateData); // 调试
             var res = await supabaseClient.from('todos').update(updateData).eq('id', todo.id);
             if(res.error) throw res.error;
-        } catch(e) { todo.text = oldText; todo.color = oldColor; renderPage(); loadTodos(); }
+        } catch(e) {
+            console.error('编辑失败', e);
+            todo.text = oldText;
+            todo.color = oldColor;
+            renderPage();
+            loadTodos();
+        }
     }
 
     function cancelEdit() { editingId = null; renderPage(); }
@@ -572,7 +585,7 @@
 
             var textHtml = '';
             if(isEditing) {
-                textHtml = '<input class="edit-input" type="text" value="'+esc(t.text)+'" maxlength="200">';
+                textHtml = '<input class="edit-input" data-id="'+t.id+'" type="text" value="'+esc(t.text)+'" maxlength="200">';
                 textHtml += '<div class="edit-color-row"><span style="font-size:0.65rem;color:#8c857b;">颜色：</span>'+
                     '<span class="edit-color-dot" style="background:'+taskColor+';" title="点击修改颜色"></span></div>';
             } else {
@@ -589,6 +602,7 @@
                     '<button class="delete-btn" title="删除">×</button>'+
                 '</div>';
 
+            // 事件绑定
             (function(todo){
                 li.querySelector('.check-circle').onclick = function(e){
                     e.stopPropagation(); spawnParticles(this, 'complete'); toggleTodo(todo);
@@ -604,16 +618,17 @@
                     var editColorDot = li.querySelector('.edit-color-dot');
                     editColorDot.addEventListener('click', function(e) {
                         e.stopPropagation();
-                        showEditColorPicker(todo, editColorDot);
+                        showEditColorPicker(todo);
                     });
                     input.addEventListener('keydown', function(e) {
-                        if(e.key === 'Enter') { e.preventDefault(); saveEdit(todo, input.value, todo.color); }
+                        if(e.key === 'Enter') { e.preventDefault(); saveEdit(todo); }
                         else if(e.key === 'Escape') { cancelEdit(); }
                     });
                     input.addEventListener('blur', function() {
                         setTimeout(function() {
                             if(editingId === todo.id) {
-                                saveEdit(todo, input.value, todo.color);
+                                // 防止因点击颜色面板导致误保存
+                                if(document.activeElement !== input) saveEdit(todo);
                             }
                         }, 150);
                     });
@@ -622,6 +637,7 @@
             todoList.appendChild(li);
         }
 
+        // 分页与小红点
         var pageHasIncomplete = [];
         for(var p=1; p<=totalPages; p++) {
             var slice = todos.slice((p-1)*PAGE_SIZE, p*PAGE_SIZE);
@@ -646,14 +662,15 @@
         taskCount.innerHTML = '剩余 <strong>'+remaining+'</strong> 项 · 共 '+todos.length+' 条';
     }
 
-    function showEditColorPicker(todo, dotElement) {
+    // 编辑时的颜色面板（直接修改todo.color并实时更新UI）
+    function showEditColorPicker(todo) {
         buildColorPanelForEdit(todo);
         colorPanel.classList.add('show');
         colorPanelOverlay.classList.add('show');
         colorPanelOverlay.onclick = function() {
             closeColorPanel();
-            // 关闭时应用当前todo.color设置到dotElement
-            if(dotElement) dotElement.style.background = todo.color;
+            // 关闭时更新背景
+            updateEditColorDisplay(todo);
             colorPanelOverlay.onclick = null;
         };
     }
@@ -689,16 +706,12 @@
     }
 
     function updateEditColorDisplay(todo) {
-        var dot = document.querySelector('.edit-color-dot[data-id="'+todo.id+'"]');
-        if(!dot) {
-            // 尝试通过父元素查找
-            var item = document.querySelector('.todo-item[data-id="'+todo.id+'"]');
-            if(item) dot = item.querySelector('.edit-color-dot');
-        }
-        if(dot) dot.style.background = todo.color;
-        // 同时更新渐变背景
         var item = document.querySelector('.todo-item[data-id="'+todo.id+'"]');
-        if(item) item.style.background = getGradientBg(todo.color, todo.completed);
+        if(item) {
+            item.style.background = getGradientBg(todo.color, todo.completed);
+            var dot = item.querySelector('.edit-color-dot');
+            if(dot) dot.style.background = todo.color;
+        }
     }
 
     function esc(str) { var d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
