@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>待办清单 · 云同步</title>
+    <title>待办清单 · 即时同步版</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
@@ -117,21 +117,16 @@
             display: flex; align-items: center; justify-content: center;
         }
         .page-btn.active { background:#c27b5c; color:#fff; border-color:#c27b5c; }
-        /* 小红点 */
         .page-btn .incomplete-dot {
             position: absolute;
-            top: 2px;
-            right: 2px;
-            width: 6px;
-            height: 6px;
+            top: 2px; right: 2px;
+            width: 6px; height: 6px;
             border-radius: 50%;
             background: #e74c3c;
             box-shadow: 0 0 3px rgba(231,76,60,0.5);
             display: none;
         }
-        .page-btn.has-incomplete .incomplete-dot {
-            display: block;
-        }
+        .page-btn.has-incomplete .incomplete-dot { display: block; }
         .app-footer {
             display:flex; justify-content:space-between; padding-top:8px; margin-top:6px;
             border-top:1px solid #f0ebe0; font-size:0.78rem; color:#8c857b;
@@ -195,7 +190,7 @@
 
 <script>
 (function() {
-    // ==================== 您的 Supabase 配置（已预填） ====================
+    // ==================== 您的 Supabase 配置 ====================
     var SUPABASE_URL = 'https://ltuqtpgkmuqbbfcssvti.supabase.co';
     var SUPABASE_ANON_KEY = 'sb_publishable_xYRf0yvSgmN6pG1AJOyDFw_cOCGIcx5';
 
@@ -209,7 +204,7 @@
         auth: { autoRefreshToken: true, persistSession: true, storage: { getItem: getItem, setItem: setItem, removeItem: removeItem } }
     });
 
-    // UI元素
+    // UI 元素
     var authCard = document.getElementById('authCard');
     var mainApp = document.getElementById('mainApp');
     var authTitle = document.getElementById('authTitle');
@@ -278,22 +273,17 @@
     }
 
     document.getElementById('avatarWrapper').addEventListener('click', function(e) {
-        e.stopPropagation();
-        avatarDropdown.classList.toggle('show');
+        e.stopPropagation(); avatarDropdown.classList.toggle('show');
     });
     document.addEventListener('click', function() { avatarDropdown.classList.remove('show'); });
 
     dropdownLogout.addEventListener('click', async function(e) {
         e.stopPropagation();
         await supabaseClient.auth.signOut();
-        stopClock();
-        mainApp.classList.remove('active');
-        authCard.classList.remove('hidden');
-        currentUser = null;
-        todos = [];
-        if(channel) supabaseClient.removeChannel(channel);
-        todoList.innerHTML = '';
-        avatarDropdown.classList.remove('show');
+        stopClock(); mainApp.classList.remove('active'); authCard.classList.remove('hidden');
+        currentUser = null; todos = [];
+        if(channel) { supabaseClient.removeChannel(channel); channel = null; }
+        todoList.innerHTML = ''; avatarDropdown.classList.remove('show');
     });
 
     authBtn.addEventListener('click', async function() {
@@ -305,11 +295,8 @@
         var email = username + '@todo.local';
         try {
             var result;
-            if(isLoginMode) {
-                result = await supabaseClient.auth.signInWithPassword({ email: email, password: password });
-            } else {
-                result = await supabaseClient.auth.signUp({ email: email, password: password });
-            }
+            if(isLoginMode) result = await supabaseClient.auth.signInWithPassword({ email: email, password: password });
+            else result = await supabaseClient.auth.signUp({ email: email, password: password });
             if(result.error) {
                 var msg = result.error.message;
                 if(msg.indexOf('Invalid login')>=0) errorMsg.textContent = '用户名或密码错误';
@@ -320,20 +307,19 @@
             }
             var userRes = await supabaseClient.auth.getUser();
             if(userRes.data && userRes.data.user) showMainApp(userRes.data.user);
-        } catch(e) { errorMsg.textContent = '网络错误，请检查URL和网络'; }
+        } catch(e) { errorMsg.textContent = '网络错误，请检查配置'; }
     });
 
     function showMainApp(user) {
         currentUser = user;
-        authCard.classList.add('hidden');
-        mainApp.classList.add('active');
+        authCard.classList.add('hidden'); mainApp.classList.add('active');
         dropdownUsername.textContent = user.email.split('@')[0];
         userAvatar.textContent = user.email.charAt(0).toUpperCase();
         userAvatar.style.background = getColor(user.email);
         startClock();
         bindTodoEvents();
-        loadTodos();
-        subscribeRealtime();
+        loadTodos();          // 首次从服务器加载真实数据
+        subscribeRealtime();  // 监听其他设备的更改
     }
 
     function getColor(str) {
@@ -342,85 +328,147 @@
         return 'hsl('+(hash%360)+',40%,55%)';
     }
 
-    // 🔁 排序：未完成在前，再按创建时间倒序
-    function sortTodos(data) {
-        return data.sort(function(a, b) {
-            if (a.completed === b.completed) {
-                return new Date(b.created_at) - new Date(a.created_at);
-            }
+    // 排序：未完成在前，再按时间倒序
+    function sortTodos(arr) {
+        return arr.sort(function(a, b) {
+            if (a.completed === b.completed) return new Date(b.created_at) - new Date(a.created_at);
             return a.completed ? 1 : -1;
         });
     }
 
+    // 从服务器加载并排序
     async function loadTodos() {
         if(!currentUser) return;
         var res = await supabaseClient.from('todos').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: false });
         if(res.error) { console.error(res.error); return; }
-        var rawData = res.data || [];
-        todos = sortTodos(rawData);   // 应用排序
+        todos = sortTodos(res.data || []);
         renderPage();
     }
 
+    // ========== 乐观更新核心逻辑 ==========
+    function generateLocalId() {
+        return 'local_' + Date.now() + Math.random().toString(36).slice(2,8);
+    }
+
+    // 添加任务：先插入本地并渲染，再同步服务器
     async function addTodo(text) {
         if(!currentUser) return;
-        var res = await supabaseClient.from('todos').insert([{ user_id: currentUser.id, text: text, completed: false }]);
-        if(res.error) { console.error(res.error); return; }
-        await loadTodos();
+        var localId = generateLocalId();
+        var newTodo = {
+            id: localId,
+            user_id: currentUser.id,
+            text: text,
+            completed: false,
+            created_at: new Date().toISOString()
+        };
+        // 乐观插入到数组头部
+        todos.unshift(newTodo);
+        renderPage();
+        try {
+            var res = await supabaseClient.from('todos').insert([{ user_id: currentUser.id, text: text, completed: false }]).select();
+            if(res.error) throw res.error;
+            // 替换本地临时ID为服务器真实ID
+            if(res.data && res.data.length > 0) {
+                var serverTodo = res.data[0];
+                var index = todos.findIndex(function(t) { return t.id === localId; });
+                if(index >= 0) {
+                    todos[index] = serverTodo;
+                    todos = sortTodos(todos);
+                    renderPage();
+                }
+            }
+        } catch(e) {
+            console.error('添加失败，回滚', e);
+            // 移除临时项
+            todos = todos.filter(function(t) { return t.id !== localId; });
+            renderPage();
+            loadTodos(); // 重新从服务器拉取确保一致
+        }
     }
 
-    async function toggleTodo(id, completed) {
-        await supabaseClient.from('todos').update({ completed: !completed }).eq('id', id);
-        await loadTodos();
+    // 切换状态：立即更新UI，再发请求
+    async function toggleTodo(todo) {
+        var originalCompleted = todo.completed;
+        todo.completed = !todo.completed;
+        renderPage();
+        try {
+            var res = await supabaseClient.from('todos').update({ completed: todo.completed }).eq('id', todo.id);
+            if(res.error) throw res.error;
+            // 成功无需额外操作
+        } catch(e) {
+            console.error('更新失败，回滚', e);
+            todo.completed = originalCompleted;
+            renderPage();
+            loadTodos();
+        }
     }
 
-    async function deleteTodo(id) {
-        await supabaseClient.from('todos').delete().eq('id', id);
-        await loadTodos();
+    // 删除任务：立即移除并渲染，再发请求
+    async function deleteTodo(todo) {
+        var index = todos.findIndex(function(t) { return t.id === todo.id; });
+        if(index < 0) return;
+        var deleted = todos.splice(index, 1)[0];
+        renderPage();
+        try {
+            var res = await supabaseClient.from('todos').delete().eq('id', todo.id);
+            if(res.error) throw res.error;
+        } catch(e) {
+            console.error('删除失败，回滚', e);
+            todos.splice(index, 0, deleted);
+            renderPage();
+            loadTodos();
+        }
     }
 
     function renderPage() {
         var totalPages = Math.ceil(todos.length / PAGE_SIZE);
-        if (currentPage > totalPages) currentPage = totalPages;
-        if (currentPage < 1) currentPage = 1;
-        var start = (currentPage - 1) * PAGE_SIZE;
+        if(currentPage > totalPages) currentPage = totalPages;
+        if(currentPage < 1) currentPage = 1;
+        var start = (currentPage-1) * PAGE_SIZE;
         var pageData = todos.slice(start, start + PAGE_SIZE);
         todoList.innerHTML = '';
-        for (var i = 0; i < pageData.length; i++) {
+        for(var i=0; i<pageData.length; i++) {
             var t = pageData[i];
             var li = document.createElement('li');
             li.className = 'todo-item' + (t.completed ? ' completed-item' : '');
             li.innerHTML = '<div class="check-circle'+(t.completed?' completed':'')+'" data-id="'+t.id+'"><span class="check-mark">✓</span></div><div class="todo-content"><span class="todo-text">'+esc(t.text)+'</span><span class="todo-date"><span class="date-dot"></span>'+fmtDate(t.created_at)+'</span></div><button class="delete-btn" data-id="'+t.id+'">×</button>';
             (function(todo){
-                li.querySelector('.check-circle').onclick = function(e){ e.stopPropagation(); spawnParticles(this,'complete'); toggleTodo(todo.id, todo.completed); };
-                li.querySelector('.delete-btn').onclick = function(e){ e.stopPropagation(); spawnParticles(this,'delete'); deleteTodo(todo.id); };
+                li.querySelector('.check-circle').onclick = function(e){
+                    e.stopPropagation();
+                    spawnParticles(this, 'complete');
+                    toggleTodo(todo);
+                };
+                li.querySelector('.delete-btn').onclick = function(e){
+                    e.stopPropagation();
+                    spawnParticles(this, 'delete');
+                    deleteTodo(todo);
+                };
             })(t);
             todoList.appendChild(li);
         }
 
-        // 🔴 计算每页是否有未完成任务
+        // 计算每页未完成任务红点
         var pageHasIncomplete = [];
-        for (var p = 1; p <= totalPages; p++) {
+        for(var p=1; p<=totalPages; p++) {
             var slice = todos.slice((p-1)*PAGE_SIZE, p*PAGE_SIZE);
             pageHasIncomplete[p] = slice.some(function(t) { return !t.completed; });
         }
-
         pageNumbers.innerHTML = '';
-        if (totalPages <= 1) {
+        if(totalPages <= 1) {
             pagination.classList.add('hidden-pagination');
         } else {
             pagination.classList.remove('hidden-pagination');
-            for (var j = 1; j <= totalPages; j++) {
+            for(var j=1; j<=totalPages; j++) {
                 var btn = document.createElement('button');
-                btn.className = 'page-btn' + (j === currentPage ? ' active' : '');
-                if (pageHasIncomplete[j]) btn.classList.add('has-incomplete');
+                btn.className = 'page-btn' + (j===currentPage?' active':'');
+                if(pageHasIncomplete[j]) btn.classList.add('has-incomplete');
                 btn.innerHTML = j + '<span class="incomplete-dot"></span>';
-                (function(p){ btn.onclick = function(){ currentPage = p; renderPage(); }; })(j);
+                (function(p){ btn.onclick = function(){ currentPage=p; renderPage(); }; })(j);
                 pageNumbers.appendChild(btn);
             }
         }
         prevBtn.disabled = currentPage <= 1;
         nextBtn.disabled = currentPage >= totalPages;
-
         var remaining = todos.filter(function(t){ return !t.completed; }).length;
         taskCount.innerHTML = '剩余 <strong>'+remaining+'</strong> 项 · 共 '+todos.length+' 条';
     }
@@ -432,20 +480,29 @@
         if(!currentUser) return;
         if(channel) supabaseClient.removeChannel(channel);
         channel = supabaseClient.channel('todos-'+currentUser.id)
-            .on('postgres_changes', { event:'*', schema:'public', table:'todos', filter:'user_id=eq.'+currentUser.id }, function(){ loadTodos(); })
+            .on('postgres_changes', { event:'*', schema:'public', table:'todos', filter:'user_id=eq.'+currentUser.id },
+                function() { loadTodos(); }
+            )
             .subscribe();
     }
 
     function bindTodoEvents() {
-        addBtn.onclick = function(){ var text = todoInput.value.trim(); if(text){ addTodo(text); todoInput.value = ''; } };
-        todoInput.onkeydown = function(e){ if(e.key==='Enter') addBtn.click(); };
-        prevBtn.onclick = function(){ if(currentPage>1){ currentPage--; renderPage(); } };
-        nextBtn.onclick = function(){ var total = Math.ceil(todos.length/PAGE_SIZE); if(currentPage<total){ currentPage++; renderPage(); } };
+        addBtn.onclick = function() {
+            var text = todoInput.value.trim();
+            if(text) { addTodo(text); todoInput.value = ''; }
+        };
+        todoInput.onkeydown = function(e) { if(e.key==='Enter') addBtn.click(); };
+        prevBtn.onclick = function() { if(currentPage>1) { currentPage--; renderPage(); } };
+        nextBtn.onclick = function() {
+            var total = Math.ceil(todos.length/PAGE_SIZE);
+            if(currentPage<total) { currentPage++; renderPage(); }
+        };
     }
 
     window.addEventListener('beforeunload', function(){ stopClock(); if(channel) supabaseClient.removeChannel(channel); });
 
-    (async function checkSession(){
+    // 自动登录
+    (async function() {
         try {
             var res = await supabaseClient.auth.getUser();
             if(res.data && res.data.user) showMainApp(res.data.user);
