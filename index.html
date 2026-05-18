@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>待办清单 · 颜色分类版</title>
+    <title>待办清单 · 醒目颜色版</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
@@ -121,37 +121,51 @@
             flex-shrink:0;
         }
 
-        /* 任务列表 */
+        /* ========== 任务列表（醒目颜色版） ========== */
         .todo-list { list-style:none; display:flex; flex-direction:column; gap:3px; min-height:40px; }
         .todo-item {
-            display:flex; align-items:flex-start; gap:10px; padding:9px 10px 9px 6px;
-            border-radius:12px; border:1px solid transparent;
-            border-left:4px solid #5b9bd5; /* 颜色标识 */
-            transition:0.2s;
+            display:flex; align-items:flex-start; gap:10px;
+            padding:10px 10px 10px 6px;
+            border-radius:12px;
+            border:1px solid transparent;
+            position:relative;
+            transition:0.25s;
+            /* 背景由JS动态设置渐变 */
         }
-        .todo-item:hover { background:#fdfaf6; border-color:#f0e8dc; }
-        .completed-item { border-left-color:#d5cdc2 !important; }
+        .todo-item:hover {
+            border-color:#e8d5c5;
+            box-shadow:0 2px 12px rgba(0,0,0,0.06);
+        }
+        /* 内部叠加层用于悬停加深 */
+        .todo-item::after {
+            content:''; position:absolute; inset:0; border-radius:12px;
+            background:rgba(0,0,0,0); transition:0.25s; pointer-events:none;
+        }
+        .todo-item:hover::after {
+            background:rgba(0,0,0,0.03);
+        }
+
         .check-circle {
             width:20px; height:20px; border-radius:50%; border:2px solid #d5ccc0;
             cursor:pointer; display:flex; align-items:center; justify-content:center;
-            flex-shrink:0; margin-top:1px; margin-left:2px;
+            flex-shrink:0; margin-top:1px; margin-left:6px; position:relative; z-index:1;
         }
         .check-circle.completed { background:#c27b5c; border-color:#c27b5c; }
         .check-mark { font-size:0.6rem; color:#fff; opacity:0; }
         .check-circle.completed .check-mark { opacity:1; }
-        .todo-content { flex:1; min-width:0; }
+        .todo-content { flex:1; min-width:0; position:relative; z-index:1; }
         .todo-text { font-size:0.9rem; word-break:break-word; }
         .completed-item .todo-text { color:#b5ada2; text-decoration:line-through; }
-        .todo-date { font-size:0.65rem; color:#b5ada2; display:flex; align-items:center; gap:4px; }
+        .todo-date { font-size:0.65rem; color:#b5ada2; display:flex; align-items:center; gap:4px; margin-top:2px; }
         .date-dot { width:4px; height:4px; border-radius:50%; background:#d5ccc0; }
-        .todo-actions { display:flex; align-items:center; gap:2px; flex-shrink:0; }
+        .todo-actions { display:flex; align-items:center; gap:2px; flex-shrink:0; position:relative; z-index:1; }
         .edit-btn, .delete-btn {
             width:28px; height:28px; border-radius:50%; border:none; background:transparent;
             color:#c5bdb0; font-size:0.9rem; cursor:pointer; opacity:0.4;
             display:flex; align-items:center; justify-content:center; transition:0.2s;
         }
         .todo-item:hover .edit-btn, .todo-item:hover .delete-btn { opacity:1; }
-        .edit-btn:hover { background:#f0efe8; color:#8c857b; }
+        .edit-btn:hover { background:rgba(0,0,0,0.05); color:#8c857b; }
         .delete-btn:hover {
             background:#fce8e4; color:#d4786b; box-shadow:0 3px 12px rgba(200,100,80,0.25);
             transform:scale(1.1);
@@ -160,7 +174,6 @@
             width:100%; border:1px solid #c27b5c; border-radius:8px; padding:4px 8px;
             font-size:0.9rem; background:#fff; outline:none; font-family:inherit;
         }
-        /* 编辑模式下的颜色选择 */
         .edit-color-row {
             display:flex; align-items:center; gap:6px; margin-top:4px;
         }
@@ -235,18 +248,14 @@
                 </div>
             </div>
 
-            <!-- 输入区域 + 颜色选择 -->
             <div class="input-wrapper">
-                <button class="color-dot-btn" id="selectedColorDot" style="background:#5b9bd5;" title="选择颜色"></button>
+                <button class="color-dot-btn" id="selectedColorDot" style="background:#e74c3c;" title="选择颜色"></button>
                 <input type="text" class="todo-input" placeholder="写点什么吧…" maxlength="200">
                 <button class="add-btn">+</button>
             </div>
 
-            <!-- 颜色选择面板遮罩 -->
             <div class="color-panel-overlay" id="colorPanelOverlay"></div>
-            <div class="color-panel" id="colorPanel">
-                <!-- JS动态生成颜色选项 -->
-            </div>
+            <div class="color-panel" id="colorPanel"></div>
 
             <ul class="todo-list"></ul>
             <div class="pagination hidden-pagination">
@@ -267,7 +276,6 @@
     var SUPABASE_URL = 'https://ltuqtpgkmuqbbfcssvti.supabase.co';
     var SUPABASE_ANON_KEY = 'sb_publishable_xYRf0yvSgmN6pG1AJOyDFw_cOCGIcx5';
 
-    // 存储降级
     var memoryStore = {};
     function getItem(key) { try { return localStorage.getItem(key); } catch(e) { return memoryStore[key] || null; } }
     function setItem(key, value) { try { localStorage.setItem(key, value); } catch(e) { memoryStore[key] = value; } }
@@ -277,7 +285,6 @@
         auth: { autoRefreshToken: true, persistSession: true, storage: { getItem: getItem, setItem: setItem, removeItem: removeItem } }
     });
 
-    // ==================== 预设颜色 ====================
     var presetColors = [
         { name: '红色', color: '#e74c3c' },
         { name: '橙色', color: '#e67e22' },
@@ -288,10 +295,9 @@
         { name: '紫色', color: '#9b59b6' },
         { name: '粉色', color: '#e91e63' }
     ];
-    var defaultColor = '#5b9bd5';
-    var selectedColor = defaultColor;  // 当前选中的颜色
+    var defaultColor = '#e74c3c';
+    var selectedColor = defaultColor;
 
-    // ==================== UI 元素 ====================
     var authCard = document.getElementById('authCard');
     var mainApp = document.getElementById('mainApp');
     var authTitle = document.getElementById('authTitle');
@@ -330,7 +336,7 @@
     var channel = null;
     var editingId = null;
 
-    // ==================== 颜色面板初始化 ====================
+    // ==================== 颜色面板 ====================
     function buildColorPanel() {
         colorPanel.innerHTML = '';
         presetColors.forEach(function(preset) {
@@ -346,20 +352,14 @@
             });
             colorPanel.appendChild(option);
         });
-        // 自定义颜色按钮
         var customWrapper = document.createElement('div');
         customWrapper.className = 'color-custom-wrapper';
-        customWrapper.title = '自定义颜色';
         customWrapper.innerHTML = '<span>+</span>';
         var customInput = document.createElement('input');
         customInput.type = 'color';
         customInput.value = selectedColor;
-        customInput.addEventListener('input', function(e) {
-            setSelectedColor(e.target.value);
-        });
-        customInput.addEventListener('click', function(e) {
-            e.stopPropagation();
-        });
+        customInput.addEventListener('input', function(e) { setSelectedColor(e.target.value); });
+        customInput.addEventListener('click', function(e) { e.stopPropagation(); });
         customWrapper.appendChild(customInput);
         colorPanel.appendChild(customWrapper);
     }
@@ -367,27 +367,58 @@
     function setSelectedColor(color) {
         selectedColor = color;
         selectedColorDot.style.background = color;
-        buildColorPanel(); // 更新选中状态
-    }
-
-    function openColorPanel() {
         buildColorPanel();
-        colorPanel.classList.add('show');
-        colorPanelOverlay.classList.add('show');
     }
 
-    function closeColorPanel() {
-        colorPanel.classList.remove('show');
-        colorPanelOverlay.classList.remove('show');
-    }
+    function openColorPanel() { buildColorPanel(); colorPanel.classList.add('show'); colorPanelOverlay.classList.add('show'); }
+    function closeColorPanel() { colorPanel.classList.remove('show'); colorPanelOverlay.classList.remove('show'); }
 
-    selectedColorDot.addEventListener('click', function(e) {
-        e.stopPropagation();
-        openColorPanel();
-    });
+    selectedColorDot.addEventListener('click', function(e) { e.stopPropagation(); openColorPanel(); });
     colorPanelOverlay.addEventListener('click', closeColorPanel);
 
-    // ==================== 切换登录/注册 ====================
+    // 生成渐变背景CSS
+    function getGradientBg(color, completed) {
+        if (completed) {
+            return 'linear-gradient(to right, #d5cdc2 0%, #d5cdc2 12px, rgba(200,190,175,0.22) 12px, rgba(200,190,175,0.07) 55%, transparent 80%)';
+        }
+        // 将hex转为rgb用于rgba
+        var r, g, b;
+        if (color.startsWith('#')) {
+            var hex = color.slice(1);
+            if (hex.length === 3) {
+                r = parseInt(hex[0]+hex[0], 16);
+                g = parseInt(hex[1]+hex[1], 16);
+                b = parseInt(hex[2]+hex[2], 16);
+            } else {
+                r = parseInt(hex.slice(0,2), 16);
+                g = parseInt(hex.slice(2,4), 16);
+                b = parseInt(hex.slice(4,6), 16);
+            }
+        } else { r=200; g=180; b=160; }
+        return 'linear-gradient(to right, ' + color + ' 0%, ' + color + ' 12px, rgba('+r+','+g+','+b+',0.22) 12px, rgba('+r+','+g+','+b+',0.07) 55%, transparent 80%)';
+    }
+
+    function getHoverBg(color, completed) {
+        if (completed) {
+            return 'linear-gradient(to right, #d5cdc2 0%, #d5cdc2 12px, rgba(200,190,175,0.30) 12px, rgba(200,190,175,0.12) 55%, rgba(200,190,175,0.03) 80%)';
+        }
+        var r, g, b;
+        if (color.startsWith('#')) {
+            var hex = color.slice(1);
+            if (hex.length === 3) {
+                r = parseInt(hex[0]+hex[0], 16);
+                g = parseInt(hex[1]+hex[1], 16);
+                b = parseInt(hex[2]+hex[2], 16);
+            } else {
+                r = parseInt(hex.slice(0,2), 16);
+                g = parseInt(hex.slice(2,4), 16);
+                b = parseInt(hex.slice(4,6), 16);
+            }
+        } else { r=200; g=180; b=160; }
+        return 'linear-gradient(to right, ' + color + ' 0%, ' + color + ' 12px, rgba('+r+','+g+','+b+',0.30) 12px, rgba('+r+','+g+','+b+',0.12) 55%, rgba('+r+','+g+','+b+',0.03) 80%)';
+    }
+
+    // ==================== 登录/注册 ====================
     switchLink.addEventListener('click', function() {
         isLoginMode = !isLoginMode;
         authTitle.textContent = isLoginMode ? '登录' : '注册';
@@ -493,22 +524,12 @@
         renderPage();
     }
 
-    function generateLocalId() {
-        return 'local_' + Date.now() + Math.random().toString(36).slice(2,8);
-    }
+    function generateLocalId() { return 'local_' + Date.now() + Math.random().toString(36).slice(2,8); }
 
-    // 添加任务
     async function addTodo(text) {
         if(!currentUser) return;
         var localId = generateLocalId();
-        var newTodo = {
-            id: localId,
-            user_id: currentUser.id,
-            text: text,
-            completed: false,
-            color: selectedColor,
-            created_at: new Date().toISOString()
-        };
+        var newTodo = { id: localId, user_id: currentUser.id, text: text, completed: false, color: selectedColor, created_at: new Date().toISOString() };
         todos.unshift(newTodo);
         renderPage();
         try {
@@ -516,64 +537,33 @@
             if(res.error) throw res.error;
             if(res.data && res.data.length > 0) {
                 var serverTodo = res.data[0];
-                var index = todos.findIndex(function(t) { return t.id === localId; });
-                if(index >= 0) {
-                    todos[index] = serverTodo;
-                    todos = sortTodos(todos);
-                    renderPage();
-                }
+                var idx = todos.findIndex(function(t) { return t.id === localId; });
+                if(idx >= 0) { todos[idx] = serverTodo; todos = sortTodos(todos); renderPage(); }
             }
-        } catch(e) {
-            console.error('添加失败，回滚', e);
-            todos = todos.filter(function(t) { return t.id !== localId; });
-            renderPage();
-            loadTodos();
-        }
+        } catch(e) { console.error('添加失败', e); todos = todos.filter(function(t) { return t.id !== localId; }); renderPage(); loadTodos(); }
     }
 
     async function toggleTodo(todo) {
-        var originalCompleted = todo.completed;
+        var orig = todo.completed;
         todo.completed = !todo.completed;
         renderPage();
-        try {
-            var res = await supabaseClient.from('todos').update({ completed: todo.completed }).eq('id', todo.id);
-            if(res.error) throw res.error;
-        } catch(e) {
-            console.error('更新失败，回滚', e);
-            todo.completed = originalCompleted;
-            renderPage();
-            loadTodos();
-        }
+        try { var res = await supabaseClient.from('todos').update({ completed: todo.completed }).eq('id', todo.id); if(res.error) throw res.error; }
+        catch(e) { todo.completed = orig; renderPage(); loadTodos(); }
     }
 
     async function deleteTodo(todo) {
-        var index = todos.findIndex(function(t) { return t.id === todo.id; });
-        if(index < 0) return;
-        var deleted = todos.splice(index, 1)[0];
+        var idx = todos.findIndex(function(t) { return t.id === todo.id; });
+        if(idx < 0) return;
+        var deleted = todos.splice(idx, 1)[0];
         renderPage();
-        try {
-            var res = await supabaseClient.from('todos').delete().eq('id', todo.id);
-            if(res.error) throw res.error;
-        } catch(e) {
-            console.error('删除失败，回滚', e);
-            todos.splice(index, 0, deleted);
-            renderPage();
-            loadTodos();
-        }
+        try { var res = await supabaseClient.from('todos').delete().eq('id', todo.id); if(res.error) throw res.error; }
+        catch(e) { todos.splice(idx, 0, deleted); renderPage(); loadTodos(); }
     }
 
-    function startEdit(todoId) {
-        editingId = todoId;
-        renderPage();
-        setTimeout(function() {
-            var input = document.querySelector('.edit-input');
-            if(input) input.focus();
-        }, 50);
-    }
+    function startEdit(todoId) { editingId = todoId; renderPage(); setTimeout(function() { var inp = document.querySelector('.edit-input'); if(inp) inp.focus(); }, 50); }
 
     async function saveEdit(todo, newText, newColor) {
-        var oldText = todo.text;
-        var oldColor = todo.color;
+        var oldText = todo.text, oldColor = todo.color;
         if(newText.trim() === '') { editingId = null; renderPage(); return; }
         todo.text = newText.trim();
         if(newColor) todo.color = newColor;
@@ -584,27 +574,16 @@
             if(newColor) updateData.color = newColor;
             var res = await supabaseClient.from('todos').update(updateData).eq('id', todo.id);
             if(res.error) throw res.error;
-        } catch(e) {
-            console.error('编辑失败，回滚', e);
-            todo.text = oldText;
-            todo.color = oldColor;
-            renderPage();
-            loadTodos();
-        }
+        } catch(e) { todo.text = oldText; todo.color = oldColor; renderPage(); loadTodos(); }
     }
 
-    function cancelEdit() {
-        editingId = null;
-        renderPage();
-    }
+    function cancelEdit() { editingId = null; renderPage(); }
 
-    // 编辑模式下修改颜色的函数
     function changeEditColor(todo, newColor) {
         todo.color = newColor;
-        // 局部更新颜色标识而不重新渲染整个列表
         var itemEl = document.querySelector('.todo-item[data-id="'+todo.id+'"]');
         if(itemEl) {
-            itemEl.style.borderLeftColor = newColor;
+            itemEl.style.background = getGradientBg(newColor, todo.completed);
             var colorDot = itemEl.querySelector('.edit-color-dot');
             if(colorDot) colorDot.style.background = newColor;
         }
@@ -614,22 +593,29 @@
         var totalPages = Math.ceil(todos.length / PAGE_SIZE);
         if(currentPage > totalPages) currentPage = totalPages;
         if(currentPage < 1) currentPage = 1;
-        var start = (currentPage-1) * PAGE_SIZE;
-        var pageData = todos.slice(start, start + PAGE_SIZE);
+        var start = (currentPage-1)*PAGE_SIZE;
+        var pageData = todos.slice(start, start+PAGE_SIZE);
         todoList.innerHTML = '';
         for(var i=0; i<pageData.length; i++) {
             var t = pageData[i];
             var taskColor = t.color || defaultColor;
+            var isEditing = (editingId === t.id);
             var li = document.createElement('li');
             li.className = 'todo-item' + (t.completed ? ' completed-item' : '');
             li.setAttribute('data-id', t.id);
-            li.style.borderLeftColor = t.completed ? '#d5cdc2' : taskColor;
+            // 设置醒目的渐变背景
+            li.style.background = getGradientBg(taskColor, t.completed);
+            // 悬停背景
+            li.addEventListener('mouseenter', function() {
+                this.style.background = getHoverBg(taskColor, t.completed);
+            });
+            li.addEventListener('mouseleave', function() {
+                this.style.background = getGradientBg(taskColor, this.classList.contains('completed-item') ? true : t.completed);
+            });
 
-            var isEditing = (editingId === t.id);
             var textHtml = '';
             if(isEditing) {
                 textHtml = '<input class="edit-input" type="text" value="'+esc(t.text)+'" maxlength="200">';
-                // 编辑模式下的颜色选择按钮
                 textHtml += '<div class="edit-color-row"><span style="font-size:0.65rem;color:#8c857b;">颜色：</span>'+
                     '<span class="edit-color-dot" style="background:'+taskColor+';" title="点击修改颜色"></span></div>';
             } else {
@@ -648,57 +634,41 @@
 
             (function(todo){
                 li.querySelector('.check-circle').onclick = function(e){
-                    e.stopPropagation();
-                    spawnParticles(this, 'complete');
-                    toggleTodo(todo);
+                    e.stopPropagation(); spawnParticles(this, 'complete'); toggleTodo(todo);
                 };
                 li.querySelector('.delete-btn').onclick = function(e){
-                    e.stopPropagation();
-                    spawnParticles(this, 'delete');
-                    deleteTodo(todo);
+                    e.stopPropagation(); spawnParticles(this, 'delete'); deleteTodo(todo);
                 };
                 li.querySelector('.edit-btn').onclick = function(e){
-                    e.stopPropagation();
-                    startEdit(todo.id);
+                    e.stopPropagation(); startEdit(todo.id);
                 };
                 if(isEditing) {
                     var input = li.querySelector('.edit-input');
                     var editColorDot = li.querySelector('.edit-color-dot');
-                    // 颜色选择
                     editColorDot.addEventListener('click', function(e) {
                         e.stopPropagation();
                         showEditColorPicker(todo, editColorDot);
                     });
                     input.addEventListener('keydown', function(e) {
-                        if(e.key === 'Enter') {
-                            e.preventDefault();
-                            saveEdit(todo, input.value, null);
-                        } else if(e.key === 'Escape') {
-                            cancelEdit();
-                        }
+                        if(e.key === 'Enter') { e.preventDefault(); saveEdit(todo, input.value, null); }
+                        else if(e.key === 'Escape') { cancelEdit(); }
                     });
                     input.addEventListener('blur', function() {
-                        setTimeout(function() {
-                            if(editingId === todo.id) {
-                                saveEdit(todo, input.value, null);
-                            }
-                        }, 100);
+                        setTimeout(function() { if(editingId === todo.id) saveEdit(todo, input.value, null); }, 100);
                     });
                 }
             })(t);
             todoList.appendChild(li);
         }
 
-        // 分页及小红点
         var pageHasIncomplete = [];
         for(var p=1; p<=totalPages; p++) {
             var slice = todos.slice((p-1)*PAGE_SIZE, p*PAGE_SIZE);
             pageHasIncomplete[p] = slice.some(function(t) { return !t.completed; });
         }
         pageNumbers.innerHTML = '';
-        if(totalPages <= 1) {
-            pagination.classList.add('hidden-pagination');
-        } else {
+        if(totalPages <= 1) { pagination.classList.add('hidden-pagination'); }
+        else {
             pagination.classList.remove('hidden-pagination');
             for(var j=1; j<=totalPages; j++) {
                 var btn = document.createElement('button');
@@ -715,17 +685,11 @@
         taskCount.innerHTML = '剩余 <strong>'+remaining+'</strong> 项 · 共 '+todos.length+' 条';
     }
 
-    // 编辑模式下弹出颜色选择器
     function showEditColorPicker(todo, dotElement) {
-        // 使用全局颜色面板但修改其行为
         buildColorPanelForEdit(todo, dotElement);
         colorPanel.classList.add('show');
         colorPanelOverlay.classList.add('show');
-        // 修改关闭行为
-        colorPanelOverlay.onclick = function() {
-            closeColorPanel();
-            colorPanelOverlay.onclick = closeColorPanel; // 恢复默认
-        };
+        colorPanelOverlay.onclick = function() { closeColorPanel(); colorPanelOverlay.onclick = closeColorPanel; };
     }
 
     function buildColorPanelForEdit(todo, dotElement) {
@@ -734,7 +698,6 @@
             var option = document.createElement('div');
             option.className = 'color-option';
             option.style.background = preset.color;
-            option.title = preset.name;
             if (preset.color === todo.color) option.classList.add('selected');
             option.addEventListener('click', function(e) {
                 e.stopPropagation();
@@ -769,30 +732,20 @@
         channel = supabaseClient.channel('todos-'+currentUser.id)
             .on('postgres_changes', { event:'*', schema:'public', table:'todos', filter:'user_id=eq.'+currentUser.id },
                 function() { if(!editingId) loadTodos(); }
-            )
-            .subscribe();
+            ).subscribe();
     }
 
     function bindTodoEvents() {
-        addBtn.onclick = function() {
-            var text = todoInput.value.trim();
-            if(text) { addTodo(text); todoInput.value = ''; }
-        };
+        addBtn.onclick = function() { var text = todoInput.value.trim(); if(text) { addTodo(text); todoInput.value = ''; } };
         todoInput.onkeydown = function(e) { if(e.key==='Enter') addBtn.click(); };
         prevBtn.onclick = function() { if(currentPage>1) { currentPage--; renderPage(); } };
-        nextBtn.onclick = function() {
-            var total = Math.ceil(todos.length/PAGE_SIZE);
-            if(currentPage<total) { currentPage++; renderPage(); }
-        };
+        nextBtn.onclick = function() { var total = Math.ceil(todos.length/PAGE_SIZE); if(currentPage<total) { currentPage++; renderPage(); } };
     }
 
     window.addEventListener('beforeunload', function(){ stopClock(); if(channel) supabaseClient.removeChannel(channel); });
 
     (async function() {
-        try {
-            var res = await supabaseClient.auth.getUser();
-            if(res.data && res.data.user) showMainApp(res.data.user);
-        } catch(e) {}
+        try { var res = await supabaseClient.auth.getUser(); if(res.data && res.data.user) showMainApp(res.data.user); } catch(e) {}
     })();
 })();
 </script>
