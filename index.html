@@ -72,7 +72,6 @@
         }
         .dropdown-logout:hover { background:#fef0ef; }
 
-        /* 输入区域 + 颜色选择器 */
         .input-wrapper { display:flex; gap:6px; margin-bottom:14px; align-items:center; }
         .color-dot-btn {
             width:36px; height:36px; border-radius:50%; border:2px solid #e0d8cc;
@@ -121,7 +120,6 @@
             flex-shrink:0;
         }
 
-        /* ========== 任务列表（醒目颜色版） ========== */
         .todo-list { list-style:none; display:flex; flex-direction:column; gap:3px; min-height:40px; }
         .todo-item {
             display:flex; align-items:flex-start; gap:10px;
@@ -129,20 +127,19 @@
             border-radius:12px;
             border:1px solid transparent;
             position:relative;
-            transition:0.25s;
-            /* 背景由JS动态设置渐变 */
+            transition:0.2s;
         }
         .todo-item:hover {
             border-color:#e8d5c5;
             box-shadow:0 2px 12px rgba(0,0,0,0.06);
         }
-        /* 内部叠加层用于悬停加深 */
+        /* 悬停叠加层 */
         .todo-item::after {
             content:''; position:absolute; inset:0; border-radius:12px;
-            background:rgba(0,0,0,0); transition:0.25s; pointer-events:none;
+            background:transparent; transition:0.25s; pointer-events:none; z-index:0;
         }
         .todo-item:hover::after {
-            background:rgba(0,0,0,0.03);
+            background:rgba(0,0,0,0.05);
         }
 
         .check-circle {
@@ -172,18 +169,17 @@
         }
         .edit-input {
             width:100%; border:1px solid #c27b5c; border-radius:8px; padding:4px 8px;
-            font-size:0.9rem; background:#fff; outline:none; font-family:inherit;
+            font-size:0.9rem; background:#fff; outline:none; font-family:inherit; z-index:1;
         }
         .edit-color-row {
-            display:flex; align-items:center; gap:6px; margin-top:4px;
+            display:flex; align-items:center; gap:6px; margin-top:4px; z-index:1;
         }
         .edit-color-dot {
             width:20px; height:20px; border-radius:50%; border:2px solid #ddd;
-            cursor:pointer; flex-shrink:0; transition:0.2s;
+            cursor:pointer; flex-shrink:0; transition:0.2s; z-index:1;
         }
         .edit-color-dot:hover { transform:scale(1.2); border-color:#999; }
 
-        /* 分页 */
         .pagination { display:flex; gap:4px; justify-content:center; padding:8px 0; }
         .page-btn {
             position:relative; min-width:28px; height:28px; border-radius:50%;
@@ -376,12 +372,11 @@
     selectedColorDot.addEventListener('click', function(e) { e.stopPropagation(); openColorPanel(); });
     colorPanelOverlay.addEventListener('click', closeColorPanel);
 
-    // 生成渐变背景CSS
+    // 生成渐变背景
     function getGradientBg(color, completed) {
         if (completed) {
             return 'linear-gradient(to right, #d5cdc2 0%, #d5cdc2 12px, rgba(200,190,175,0.22) 12px, rgba(200,190,175,0.07) 55%, transparent 80%)';
         }
-        // 将hex转为rgb用于rgba
         var r, g, b;
         if (color.startsWith('#')) {
             var hex = color.slice(1);
@@ -396,26 +391,6 @@
             }
         } else { r=200; g=180; b=160; }
         return 'linear-gradient(to right, ' + color + ' 0%, ' + color + ' 12px, rgba('+r+','+g+','+b+',0.22) 12px, rgba('+r+','+g+','+b+',0.07) 55%, transparent 80%)';
-    }
-
-    function getHoverBg(color, completed) {
-        if (completed) {
-            return 'linear-gradient(to right, #d5cdc2 0%, #d5cdc2 12px, rgba(200,190,175,0.30) 12px, rgba(200,190,175,0.12) 55%, rgba(200,190,175,0.03) 80%)';
-        }
-        var r, g, b;
-        if (color.startsWith('#')) {
-            var hex = color.slice(1);
-            if (hex.length === 3) {
-                r = parseInt(hex[0]+hex[0], 16);
-                g = parseInt(hex[1]+hex[1], 16);
-                b = parseInt(hex[2]+hex[2], 16);
-            } else {
-                r = parseInt(hex.slice(0,2), 16);
-                g = parseInt(hex.slice(2,4), 16);
-                b = parseInt(hex.slice(4,6), 16);
-            }
-        } else { r=200; g=180; b=160; }
-        return 'linear-gradient(to right, ' + color + ' 0%, ' + color + ' 12px, rgba('+r+','+g+','+b+',0.30) 12px, rgba('+r+','+g+','+b+',0.12) 55%, rgba('+r+','+g+','+b+',0.03) 80%)';
     }
 
     // ==================== 登录/注册 ====================
@@ -579,16 +554,6 @@
 
     function cancelEdit() { editingId = null; renderPage(); }
 
-    function changeEditColor(todo, newColor) {
-        todo.color = newColor;
-        var itemEl = document.querySelector('.todo-item[data-id="'+todo.id+'"]');
-        if(itemEl) {
-            itemEl.style.background = getGradientBg(newColor, todo.completed);
-            var colorDot = itemEl.querySelector('.edit-color-dot');
-            if(colorDot) colorDot.style.background = newColor;
-        }
-    }
-
     function renderPage() {
         var totalPages = Math.ceil(todos.length / PAGE_SIZE);
         if(currentPage > totalPages) currentPage = totalPages;
@@ -603,15 +568,7 @@
             var li = document.createElement('li');
             li.className = 'todo-item' + (t.completed ? ' completed-item' : '');
             li.setAttribute('data-id', t.id);
-            // 设置醒目的渐变背景
             li.style.background = getGradientBg(taskColor, t.completed);
-            // 悬停背景
-            li.addEventListener('mouseenter', function() {
-                this.style.background = getHoverBg(taskColor, t.completed);
-            });
-            li.addEventListener('mouseleave', function() {
-                this.style.background = getGradientBg(taskColor, this.classList.contains('completed-item') ? true : t.completed);
-            });
 
             var textHtml = '';
             if(isEditing) {
@@ -650,11 +607,15 @@
                         showEditColorPicker(todo, editColorDot);
                     });
                     input.addEventListener('keydown', function(e) {
-                        if(e.key === 'Enter') { e.preventDefault(); saveEdit(todo, input.value, null); }
+                        if(e.key === 'Enter') { e.preventDefault(); saveEdit(todo, input.value, todo.color); }
                         else if(e.key === 'Escape') { cancelEdit(); }
                     });
                     input.addEventListener('blur', function() {
-                        setTimeout(function() { if(editingId === todo.id) saveEdit(todo, input.value, null); }, 100);
+                        setTimeout(function() {
+                            if(editingId === todo.id) {
+                                saveEdit(todo, input.value, todo.color);
+                            }
+                        }, 150);
                     });
                 }
             })(t);
@@ -686,13 +647,18 @@
     }
 
     function showEditColorPicker(todo, dotElement) {
-        buildColorPanelForEdit(todo, dotElement);
+        buildColorPanelForEdit(todo);
         colorPanel.classList.add('show');
         colorPanelOverlay.classList.add('show');
-        colorPanelOverlay.onclick = function() { closeColorPanel(); colorPanelOverlay.onclick = closeColorPanel; };
+        colorPanelOverlay.onclick = function() {
+            closeColorPanel();
+            // 关闭时应用当前todo.color设置到dotElement
+            if(dotElement) dotElement.style.background = todo.color;
+            colorPanelOverlay.onclick = null;
+        };
     }
 
-    function buildColorPanelForEdit(todo, dotElement) {
+    function buildColorPanelForEdit(todo) {
         colorPanel.innerHTML = '';
         presetColors.forEach(function(preset) {
             var option = document.createElement('div');
@@ -701,10 +667,9 @@
             if (preset.color === todo.color) option.classList.add('selected');
             option.addEventListener('click', function(e) {
                 e.stopPropagation();
-                changeEditColor(todo, preset.color);
-                if(dotElement) dotElement.style.background = preset.color;
+                todo.color = preset.color;
+                updateEditColorDisplay(todo);
                 closeColorPanel();
-                colorPanelOverlay.onclick = closeColorPanel;
             });
             colorPanel.appendChild(option);
         });
@@ -715,12 +680,25 @@
         customInput.type = 'color';
         customInput.value = todo.color;
         customInput.addEventListener('input', function(e) {
-            changeEditColor(todo, e.target.value);
-            if(dotElement) dotElement.style.background = e.target.value;
+            todo.color = e.target.value;
+            updateEditColorDisplay(todo);
         });
         customInput.addEventListener('click', function(e) { e.stopPropagation(); });
         customWrapper.appendChild(customInput);
         colorPanel.appendChild(customWrapper);
+    }
+
+    function updateEditColorDisplay(todo) {
+        var dot = document.querySelector('.edit-color-dot[data-id="'+todo.id+'"]');
+        if(!dot) {
+            // 尝试通过父元素查找
+            var item = document.querySelector('.todo-item[data-id="'+todo.id+'"]');
+            if(item) dot = item.querySelector('.edit-color-dot');
+        }
+        if(dot) dot.style.background = todo.color;
+        // 同时更新渐变背景
+        var item = document.querySelector('.todo-item[data-id="'+todo.id+'"]');
+        if(item) item.style.background = getGradientBg(todo.color, todo.completed);
     }
 
     function esc(str) { var d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
