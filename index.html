@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>待办清单 · 即时同步版</title>
+    <title>待办清单 · 可编辑版</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
@@ -94,20 +94,31 @@
         .check-circle.completed { background:#c27b5c; border-color:#c27b5c; }
         .check-mark { font-size:0.6rem; color:#fff; opacity:0; }
         .check-circle.completed .check-mark { opacity:1; }
-        .todo-content { flex:1; }
+        .todo-content { flex:1; min-width:0; }
         .todo-text { font-size:0.9rem; word-break:break-word; }
         .completed-item .todo-text { color:#b5ada2; text-decoration:line-through; }
         .todo-date { font-size:0.65rem; color:#b5ada2; display:flex; align-items:center; gap:4px; }
         .date-dot { width:4px; height:4px; border-radius:50%; background:#d5ccc0; }
-        .delete-btn {
-            width:34px; height:34px; border-radius:50%; border:none; background:transparent;
-            color:#c5bdb0; font-size:1rem; cursor:pointer; opacity:0.4; flex-shrink:0;
+        /* 操作按钮区域 */
+        .todo-actions {
+            display:flex; align-items:center; gap:4px; flex-shrink:0;
+        }
+        .edit-btn, .delete-btn {
+            width:28px; height:28px; border-radius:50%; border:none; background:transparent;
+            color:#c5bdb0; font-size:0.9rem; cursor:pointer; opacity:0.4;
+            display:flex; align-items:center; justify-content:center;
             transition:0.2s;
         }
+        .todo-item:hover .edit-btn,
         .todo-item:hover .delete-btn { opacity:1; }
+        .edit-btn:hover { background:#f0efe8; color:#8c857b; }
         .delete-btn:hover {
             background:#fce8e4; color:#d4786b; box-shadow:0 3px 12px rgba(200,100,80,0.25);
             transform:scale(1.1);
+        }
+        .edit-input {
+            width:100%; border:1px solid #c27b5c; border-radius:8px; padding:4px 8px;
+            font-size:0.9rem; background:#fff; outline:none; font-family: inherit;
         }
         .pagination { display:flex; gap:4px; justify-content:center; padding:8px 0; }
         .page-btn {
@@ -238,6 +249,7 @@
     var PAGE_SIZE = 7;
     var clockTimer = null;
     var channel = null;
+    var editingId = null;   // 当前正在编辑的任务ID
 
     switchLink.addEventListener('click', function() {
         isLoginMode = !isLoginMode;
@@ -318,8 +330,8 @@
         userAvatar.style.background = getColor(user.email);
         startClock();
         bindTodoEvents();
-        loadTodos();          // 首次从服务器加载真实数据
-        subscribeRealtime();  // 监听其他设备的更改
+        loadTodos();
+        subscribeRealtime();
     }
 
     function getColor(str) {
@@ -328,7 +340,6 @@
         return 'hsl('+(hash%360)+',40%,55%)';
     }
 
-    // 排序：未完成在前，再按时间倒序
     function sortTodos(arr) {
         return arr.sort(function(a, b) {
             if (a.completed === b.completed) return new Date(b.created_at) - new Date(a.created_at);
@@ -336,7 +347,6 @@
         });
     }
 
-    // 从服务器加载并排序
     async function loadTodos() {
         if(!currentUser) return;
         var res = await supabaseClient.from('todos').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: false });
@@ -345,12 +355,11 @@
         renderPage();
     }
 
-    // ========== 乐观更新核心逻辑 ==========
     function generateLocalId() {
         return 'local_' + Date.now() + Math.random().toString(36).slice(2,8);
     }
 
-    // 添加任务：先插入本地并渲染，再同步服务器
+    // 添加任务（乐观更新）
     async function addTodo(text) {
         if(!currentUser) return;
         var localId = generateLocalId();
@@ -361,13 +370,11 @@
             completed: false,
             created_at: new Date().toISOString()
         };
-        // 乐观插入到数组头部
         todos.unshift(newTodo);
         renderPage();
         try {
             var res = await supabaseClient.from('todos').insert([{ user_id: currentUser.id, text: text, completed: false }]).select();
             if(res.error) throw res.error;
-            // 替换本地临时ID为服务器真实ID
             if(res.data && res.data.length > 0) {
                 var serverTodo = res.data[0];
                 var index = todos.findIndex(function(t) { return t.id === localId; });
@@ -379,14 +386,13 @@
             }
         } catch(e) {
             console.error('添加失败，回滚', e);
-            // 移除临时项
             todos = todos.filter(function(t) { return t.id !== localId; });
             renderPage();
-            loadTodos(); // 重新从服务器拉取确保一致
+            loadTodos();
         }
     }
 
-    // 切换状态：立即更新UI，再发请求
+    // 切换状态（乐观）
     async function toggleTodo(todo) {
         var originalCompleted = todo.completed;
         todo.completed = !todo.completed;
@@ -394,7 +400,6 @@
         try {
             var res = await supabaseClient.from('todos').update({ completed: todo.completed }).eq('id', todo.id);
             if(res.error) throw res.error;
-            // 成功无需额外操作
         } catch(e) {
             console.error('更新失败，回滚', e);
             todo.completed = originalCompleted;
@@ -403,7 +408,7 @@
         }
     }
 
-    // 删除任务：立即移除并渲染，再发请求
+    // 删除任务（乐观）
     async function deleteTodo(todo) {
         var index = todos.findIndex(function(t) { return t.id === todo.id; });
         if(index < 0) return;
@@ -420,6 +425,40 @@
         }
     }
 
+    // 编辑任务：开始编辑
+    function startEdit(todoId) {
+        editingId = todoId;
+        renderPage();
+        // 自动聚焦编辑输入框
+        setTimeout(function() {
+            var input = document.querySelector('.edit-input');
+            if(input) input.focus();
+        }, 50);
+    }
+
+    // 保存编辑
+    async function saveEdit(todo, newText) {
+        var oldText = todo.text;
+        if(newText.trim() === '') return; // 不允许空
+        todo.text = newText.trim();
+        editingId = null;
+        renderPage();
+        try {
+            var res = await supabaseClient.from('todos').update({ text: todo.text }).eq('id', todo.id);
+            if(res.error) throw res.error;
+        } catch(e) {
+            console.error('编辑失败，回滚', e);
+            todo.text = oldText;
+            renderPage();
+            loadTodos();
+        }
+    }
+
+    function cancelEdit() {
+        editingId = null;
+        renderPage();
+    }
+
     function renderPage() {
         var totalPages = Math.ceil(todos.length / PAGE_SIZE);
         if(currentPage > totalPages) currentPage = totalPages;
@@ -431,7 +470,27 @@
             var t = pageData[i];
             var li = document.createElement('li');
             li.className = 'todo-item' + (t.completed ? ' completed-item' : '');
-            li.innerHTML = '<div class="check-circle'+(t.completed?' completed':'')+'" data-id="'+t.id+'"><span class="check-mark">✓</span></div><div class="todo-content"><span class="todo-text">'+esc(t.text)+'</span><span class="todo-date"><span class="date-dot"></span>'+fmtDate(t.created_at)+'</span></div><button class="delete-btn" data-id="'+t.id+'">×</button>';
+            
+            var isEditing = (editingId === t.id);
+            var textHtml = '';
+            if(isEditing) {
+                textHtml = '<input class="edit-input" type="text" value="'+esc(t.text)+'" maxlength="200">';
+            } else {
+                textHtml = '<span class="todo-text">'+esc(t.text)+'</span>';
+            }
+            
+            li.innerHTML = 
+                '<div class="check-circle'+(t.completed?' completed':'')+'" data-id="'+t.id+'"><span class="check-mark">✓</span></div>'+
+                '<div class="todo-content">'+
+                    textHtml +
+                    '<span class="todo-date"><span class="date-dot"></span>'+fmtDate(t.created_at)+'</span>'+
+                '</div>'+
+                '<div class="todo-actions">'+
+                    '<button class="edit-btn" title="编辑">✎</button>'+
+                    '<button class="delete-btn" title="删除">×</button>'+
+                '</div>';
+            
+            // 绑定事件
             (function(todo){
                 li.querySelector('.check-circle').onclick = function(e){
                     e.stopPropagation();
@@ -443,11 +502,34 @@
                     spawnParticles(this, 'delete');
                     deleteTodo(todo);
                 };
+                li.querySelector('.edit-btn').onclick = function(e){
+                    e.stopPropagation();
+                    startEdit(todo.id);
+                };
+                if(isEditing) {
+                    var input = li.querySelector('.edit-input');
+                    input.addEventListener('keydown', function(e) {
+                        if(e.key === 'Enter') {
+                            e.preventDefault();
+                            saveEdit(todo, input.value);
+                        } else if(e.key === 'Escape') {
+                            cancelEdit();
+                        }
+                    });
+                    input.addEventListener('blur', function() {
+                        // 失焦时保存，但需避免因点击其他按钮立即触发取消
+                        setTimeout(function() {
+                            if(editingId === todo.id) {
+                                saveEdit(todo, input.value);
+                            }
+                        }, 100);
+                    });
+                }
             })(t);
             todoList.appendChild(li);
         }
 
-        // 计算每页未完成任务红点
+        // 分页及小红点
         var pageHasIncomplete = [];
         for(var p=1; p<=totalPages; p++) {
             var slice = todos.slice((p-1)*PAGE_SIZE, p*PAGE_SIZE);
@@ -481,7 +563,7 @@
         if(channel) supabaseClient.removeChannel(channel);
         channel = supabaseClient.channel('todos-'+currentUser.id)
             .on('postgres_changes', { event:'*', schema:'public', table:'todos', filter:'user_id=eq.'+currentUser.id },
-                function() { loadTodos(); }
+                function() { if(!editingId) loadTodos(); }  // 编辑时不刷新，避免输入框丢失
             )
             .subscribe();
     }
