@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>待办清单 · 可编辑版</title>
+    <title>待办清单 · 颜色分类版</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
@@ -71,25 +71,70 @@
             color:#c0392b; font-weight:600; cursor:pointer;
         }
         .dropdown-logout:hover { background:#fef0ef; }
-        .input-wrapper { display:flex; gap:8px; margin-bottom:14px; }
+
+        /* 输入区域 + 颜色选择器 */
+        .input-wrapper { display:flex; gap:6px; margin-bottom:14px; align-items:center; }
+        .color-dot-btn {
+            width:36px; height:36px; border-radius:50%; border:2px solid #e0d8cc;
+            cursor:pointer; flex-shrink:0; transition:0.2s; position:relative; outline:none;
+            box-shadow:0 1px 3px rgba(0,0,0,0.08);
+        }
+        .color-dot-btn:hover { transform:scale(1.1); border-color:#c27b5c; }
+        .color-dot-btn:active { transform:scale(0.95); }
+        .color-panel {
+            position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+            background:#fff; border-radius:20px; box-shadow:0 12px 40px rgba(0,0,0,0.2);
+            padding:16px; display:none; z-index:100; flex-wrap:wrap; gap:10px;
+            max-width:280px; justify-content:center;
+        }
+        .color-panel.show { display:flex; }
+        .color-panel-overlay {
+            position:fixed; inset:0; background:rgba(0,0,0,0.3); z-index:99;
+            display:none;
+        }
+        .color-panel-overlay.show { display:block; }
+        .color-option {
+            width:36px; height:36px; border-radius:50%; cursor:pointer; border:2px solid transparent;
+            transition:0.2s; flex-shrink:0;
+        }
+        .color-option:hover { transform:scale(1.15); border-color:#333; }
+        .color-option.selected { border-color:#333; box-shadow:0 0 0 3px rgba(0,0,0,0.15); }
+        .color-custom-wrapper {
+            width:36px; height:36px; border-radius:50%; cursor:pointer;
+            border:2px dashed #ccc; display:flex; align-items:center; justify-content:center;
+            font-size:1.2rem; color:#aaa; transition:0.2s; flex-shrink:0; position:relative;
+            overflow:hidden;
+        }
+        .color-custom-wrapper:hover { border-color:#999; }
+        .color-custom-wrapper input[type="color"] {
+            position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%;
+        }
+
         .todo-input {
             flex:1; padding:12px 15px; border:1.5px solid #e7e0d8; border-radius:16px;
-            font-size:0.9rem; background:#fdfcf9;
+            font-size:0.9rem; background:#fdfcf9; min-width:0;
         }
+        .todo-input:focus { border-color:#c27b5c; box-shadow:0 0 0 4px rgba(194,123,92,0.08); }
         .add-btn {
             width:42px; height:42px; border-radius:50%; background:#c27b5c; color:#fff;
             border:none; font-size:1.3rem; cursor:pointer; box-shadow:0 2px 8px rgba(194,123,92,0.25);
+            flex-shrink:0;
         }
+
+        /* 任务列表 */
         .todo-list { list-style:none; display:flex; flex-direction:column; gap:3px; min-height:40px; }
         .todo-item {
-            display:flex; align-items:flex-start; gap:10px; padding:9px 12px;
+            display:flex; align-items:flex-start; gap:10px; padding:9px 10px 9px 6px;
             border-radius:12px; border:1px solid transparent;
+            border-left:4px solid #5b9bd5; /* 颜色标识 */
+            transition:0.2s;
         }
         .todo-item:hover { background:#fdfaf6; border-color:#f0e8dc; }
+        .completed-item { border-left-color:#d5cdc2 !important; }
         .check-circle {
             width:20px; height:20px; border-radius:50%; border:2px solid #d5ccc0;
             cursor:pointer; display:flex; align-items:center; justify-content:center;
-            flex-shrink:0; margin-top:1px;
+            flex-shrink:0; margin-top:1px; margin-left:2px;
         }
         .check-circle.completed { background:#c27b5c; border-color:#c27b5c; }
         .check-mark { font-size:0.6rem; color:#fff; opacity:0; }
@@ -99,18 +144,13 @@
         .completed-item .todo-text { color:#b5ada2; text-decoration:line-through; }
         .todo-date { font-size:0.65rem; color:#b5ada2; display:flex; align-items:center; gap:4px; }
         .date-dot { width:4px; height:4px; border-radius:50%; background:#d5ccc0; }
-        /* 操作按钮区域 */
-        .todo-actions {
-            display:flex; align-items:center; gap:4px; flex-shrink:0;
-        }
+        .todo-actions { display:flex; align-items:center; gap:2px; flex-shrink:0; }
         .edit-btn, .delete-btn {
             width:28px; height:28px; border-radius:50%; border:none; background:transparent;
             color:#c5bdb0; font-size:0.9rem; cursor:pointer; opacity:0.4;
-            display:flex; align-items:center; justify-content:center;
-            transition:0.2s;
+            display:flex; align-items:center; justify-content:center; transition:0.2s;
         }
-        .todo-item:hover .edit-btn,
-        .todo-item:hover .delete-btn { opacity:1; }
+        .todo-item:hover .edit-btn, .todo-item:hover .delete-btn { opacity:1; }
         .edit-btn:hover { background:#f0efe8; color:#8c857b; }
         .delete-btn:hover {
             background:#fce8e4; color:#d4786b; box-shadow:0 3px 12px rgba(200,100,80,0.25);
@@ -118,26 +158,32 @@
         }
         .edit-input {
             width:100%; border:1px solid #c27b5c; border-radius:8px; padding:4px 8px;
-            font-size:0.9rem; background:#fff; outline:none; font-family: inherit;
+            font-size:0.9rem; background:#fff; outline:none; font-family:inherit;
         }
+        /* 编辑模式下的颜色选择 */
+        .edit-color-row {
+            display:flex; align-items:center; gap:6px; margin-top:4px;
+        }
+        .edit-color-dot {
+            width:20px; height:20px; border-radius:50%; border:2px solid #ddd;
+            cursor:pointer; flex-shrink:0; transition:0.2s;
+        }
+        .edit-color-dot:hover { transform:scale(1.2); border-color:#999; }
+
+        /* 分页 */
         .pagination { display:flex; gap:4px; justify-content:center; padding:8px 0; }
         .page-btn {
-            position: relative;
-            min-width:28px; height:28px; border-radius:50%; border:1.5px solid transparent;
-            background:transparent; color:#8c857b; cursor:pointer; font-size:0.78rem;
-            display: flex; align-items: center; justify-content: center;
+            position:relative; min-width:28px; height:28px; border-radius:50%;
+            border:1.5px solid transparent; background:transparent; color:#8c857b;
+            cursor:pointer; font-size:0.78rem; display:flex; align-items:center; justify-content:center;
         }
         .page-btn.active { background:#c27b5c; color:#fff; border-color:#c27b5c; }
         .page-btn .incomplete-dot {
-            position: absolute;
-            top: 2px; right: 2px;
-            width: 6px; height: 6px;
-            border-radius: 50%;
-            background: #e74c3c;
-            box-shadow: 0 0 3px rgba(231,76,60,0.5);
-            display: none;
+            position:absolute; top:2px; right:2px; width:6px; height:6px;
+            border-radius:50%; background:#e74c3c; box-shadow:0 0 3px rgba(231,76,60,0.5);
+            display:none;
         }
-        .page-btn.has-incomplete .incomplete-dot { display: block; }
+        .page-btn.has-incomplete .incomplete-dot { display:block; }
         .app-footer {
             display:flex; justify-content:space-between; padding-top:8px; margin-top:6px;
             border-top:1px solid #f0ebe0; font-size:0.78rem; color:#8c857b;
@@ -150,6 +196,12 @@
         @keyframes fly {
             0%{transform:translate(0,0) scale(1);opacity:1}
             100%{transform:translate(var(--dx),var(--dy)) scale(0);opacity:0}
+        }
+        @media (max-width:400px) {
+            .color-option, .color-custom-wrapper { width:32px; height:32px; }
+            .color-panel { max-width:250px; gap:8px; padding:12px; }
+            .color-dot-btn { width:32px; height:32px; }
+            .add-btn { width:38px; height:38px; }
         }
     </style>
 </head>
@@ -182,10 +234,20 @@
                     </div>
                 </div>
             </div>
+
+            <!-- 输入区域 + 颜色选择 -->
             <div class="input-wrapper">
+                <button class="color-dot-btn" id="selectedColorDot" style="background:#5b9bd5;" title="选择颜色"></button>
                 <input type="text" class="todo-input" placeholder="写点什么吧…" maxlength="200">
                 <button class="add-btn">+</button>
             </div>
+
+            <!-- 颜色选择面板遮罩 -->
+            <div class="color-panel-overlay" id="colorPanelOverlay"></div>
+            <div class="color-panel" id="colorPanel">
+                <!-- JS动态生成颜色选项 -->
+            </div>
+
             <ul class="todo-list"></ul>
             <div class="pagination hidden-pagination">
                 <button class="page-btn nav-btn prev-btn">‹</button>
@@ -215,7 +277,21 @@
         auth: { autoRefreshToken: true, persistSession: true, storage: { getItem: getItem, setItem: setItem, removeItem: removeItem } }
     });
 
-    // UI 元素
+    // ==================== 预设颜色 ====================
+    var presetColors = [
+        { name: '红色', color: '#e74c3c' },
+        { name: '橙色', color: '#e67e22' },
+        { name: '黄色', color: '#f1c40f' },
+        { name: '绿色', color: '#2ecc71' },
+        { name: '青色', color: '#1abc9c' },
+        { name: '蓝色', color: '#3498db' },
+        { name: '紫色', color: '#9b59b6' },
+        { name: '粉色', color: '#e91e63' }
+    ];
+    var defaultColor = '#5b9bd5';
+    var selectedColor = defaultColor;  // 当前选中的颜色
+
+    // ==================== UI 元素 ====================
     var authCard = document.getElementById('authCard');
     var mainApp = document.getElementById('mainApp');
     var authTitle = document.getElementById('authTitle');
@@ -227,6 +303,9 @@
     var errorMsg = document.getElementById('errorMsg');
     var todoInput = document.querySelector('.todo-input');
     var addBtn = document.querySelector('.add-btn');
+    var selectedColorDot = document.getElementById('selectedColorDot');
+    var colorPanel = document.getElementById('colorPanel');
+    var colorPanelOverlay = document.getElementById('colorPanelOverlay');
     var todoList = document.querySelector('.todo-list');
     var taskCount = document.querySelector('.task-count');
     var pagination = document.querySelector('.pagination');
@@ -249,8 +328,66 @@
     var PAGE_SIZE = 7;
     var clockTimer = null;
     var channel = null;
-    var editingId = null;   // 当前正在编辑的任务ID
+    var editingId = null;
 
+    // ==================== 颜色面板初始化 ====================
+    function buildColorPanel() {
+        colorPanel.innerHTML = '';
+        presetColors.forEach(function(preset) {
+            var option = document.createElement('div');
+            option.className = 'color-option';
+            option.style.background = preset.color;
+            option.title = preset.name;
+            if (preset.color === selectedColor) option.classList.add('selected');
+            option.addEventListener('click', function(e) {
+                e.stopPropagation();
+                setSelectedColor(preset.color);
+                closeColorPanel();
+            });
+            colorPanel.appendChild(option);
+        });
+        // 自定义颜色按钮
+        var customWrapper = document.createElement('div');
+        customWrapper.className = 'color-custom-wrapper';
+        customWrapper.title = '自定义颜色';
+        customWrapper.innerHTML = '<span>+</span>';
+        var customInput = document.createElement('input');
+        customInput.type = 'color';
+        customInput.value = selectedColor;
+        customInput.addEventListener('input', function(e) {
+            setSelectedColor(e.target.value);
+        });
+        customInput.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+        customWrapper.appendChild(customInput);
+        colorPanel.appendChild(customWrapper);
+    }
+
+    function setSelectedColor(color) {
+        selectedColor = color;
+        selectedColorDot.style.background = color;
+        buildColorPanel(); // 更新选中状态
+    }
+
+    function openColorPanel() {
+        buildColorPanel();
+        colorPanel.classList.add('show');
+        colorPanelOverlay.classList.add('show');
+    }
+
+    function closeColorPanel() {
+        colorPanel.classList.remove('show');
+        colorPanelOverlay.classList.remove('show');
+    }
+
+    selectedColorDot.addEventListener('click', function(e) {
+        e.stopPropagation();
+        openColorPanel();
+    });
+    colorPanelOverlay.addEventListener('click', closeColorPanel);
+
+    // ==================== 切换登录/注册 ====================
     switchLink.addEventListener('click', function() {
         isLoginMode = !isLoginMode;
         authTitle.textContent = isLoginMode ? '登录' : '注册';
@@ -332,6 +469,7 @@
         bindTodoEvents();
         loadTodos();
         subscribeRealtime();
+        buildColorPanel();
     }
 
     function getColor(str) {
@@ -359,7 +497,7 @@
         return 'local_' + Date.now() + Math.random().toString(36).slice(2,8);
     }
 
-    // 添加任务（乐观更新）
+    // 添加任务
     async function addTodo(text) {
         if(!currentUser) return;
         var localId = generateLocalId();
@@ -368,12 +506,13 @@
             user_id: currentUser.id,
             text: text,
             completed: false,
+            color: selectedColor,
             created_at: new Date().toISOString()
         };
         todos.unshift(newTodo);
         renderPage();
         try {
-            var res = await supabaseClient.from('todos').insert([{ user_id: currentUser.id, text: text, completed: false }]).select();
+            var res = await supabaseClient.from('todos').insert([{ user_id: currentUser.id, text: text, completed: false, color: selectedColor }]).select();
             if(res.error) throw res.error;
             if(res.data && res.data.length > 0) {
                 var serverTodo = res.data[0];
@@ -392,7 +531,6 @@
         }
     }
 
-    // 切换状态（乐观）
     async function toggleTodo(todo) {
         var originalCompleted = todo.completed;
         todo.completed = !todo.completed;
@@ -408,7 +546,6 @@
         }
     }
 
-    // 删除任务（乐观）
     async function deleteTodo(todo) {
         var index = todos.findIndex(function(t) { return t.id === todo.id; });
         if(index < 0) return;
@@ -425,30 +562,32 @@
         }
     }
 
-    // 编辑任务：开始编辑
     function startEdit(todoId) {
         editingId = todoId;
         renderPage();
-        // 自动聚焦编辑输入框
         setTimeout(function() {
             var input = document.querySelector('.edit-input');
             if(input) input.focus();
         }, 50);
     }
 
-    // 保存编辑
-    async function saveEdit(todo, newText) {
+    async function saveEdit(todo, newText, newColor) {
         var oldText = todo.text;
-        if(newText.trim() === '') return; // 不允许空
+        var oldColor = todo.color;
+        if(newText.trim() === '') { editingId = null; renderPage(); return; }
         todo.text = newText.trim();
+        if(newColor) todo.color = newColor;
         editingId = null;
         renderPage();
         try {
-            var res = await supabaseClient.from('todos').update({ text: todo.text }).eq('id', todo.id);
+            var updateData = { text: todo.text };
+            if(newColor) updateData.color = newColor;
+            var res = await supabaseClient.from('todos').update(updateData).eq('id', todo.id);
             if(res.error) throw res.error;
         } catch(e) {
             console.error('编辑失败，回滚', e);
             todo.text = oldText;
+            todo.color = oldColor;
             renderPage();
             loadTodos();
         }
@@ -457,6 +596,18 @@
     function cancelEdit() {
         editingId = null;
         renderPage();
+    }
+
+    // 编辑模式下修改颜色的函数
+    function changeEditColor(todo, newColor) {
+        todo.color = newColor;
+        // 局部更新颜色标识而不重新渲染整个列表
+        var itemEl = document.querySelector('.todo-item[data-id="'+todo.id+'"]');
+        if(itemEl) {
+            itemEl.style.borderLeftColor = newColor;
+            var colorDot = itemEl.querySelector('.edit-color-dot');
+            if(colorDot) colorDot.style.background = newColor;
+        }
     }
 
     function renderPage() {
@@ -468,29 +619,33 @@
         todoList.innerHTML = '';
         for(var i=0; i<pageData.length; i++) {
             var t = pageData[i];
+            var taskColor = t.color || defaultColor;
             var li = document.createElement('li');
             li.className = 'todo-item' + (t.completed ? ' completed-item' : '');
-            
+            li.setAttribute('data-id', t.id);
+            li.style.borderLeftColor = t.completed ? '#d5cdc2' : taskColor;
+
             var isEditing = (editingId === t.id);
             var textHtml = '';
             if(isEditing) {
                 textHtml = '<input class="edit-input" type="text" value="'+esc(t.text)+'" maxlength="200">';
+                // 编辑模式下的颜色选择按钮
+                textHtml += '<div class="edit-color-row"><span style="font-size:0.65rem;color:#8c857b;">颜色：</span>'+
+                    '<span class="edit-color-dot" style="background:'+taskColor+';" title="点击修改颜色"></span></div>';
             } else {
                 textHtml = '<span class="todo-text">'+esc(t.text)+'</span>';
             }
-            
-            li.innerHTML = 
+
+            li.innerHTML =
                 '<div class="check-circle'+(t.completed?' completed':'')+'" data-id="'+t.id+'"><span class="check-mark">✓</span></div>'+
-                '<div class="todo-content">'+
-                    textHtml +
+                '<div class="todo-content">'+textHtml+
                     '<span class="todo-date"><span class="date-dot"></span>'+fmtDate(t.created_at)+'</span>'+
                 '</div>'+
                 '<div class="todo-actions">'+
                     '<button class="edit-btn" title="编辑">✎</button>'+
                     '<button class="delete-btn" title="删除">×</button>'+
                 '</div>';
-            
-            // 绑定事件
+
             (function(todo){
                 li.querySelector('.check-circle').onclick = function(e){
                     e.stopPropagation();
@@ -508,19 +663,24 @@
                 };
                 if(isEditing) {
                     var input = li.querySelector('.edit-input');
+                    var editColorDot = li.querySelector('.edit-color-dot');
+                    // 颜色选择
+                    editColorDot.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        showEditColorPicker(todo, editColorDot);
+                    });
                     input.addEventListener('keydown', function(e) {
                         if(e.key === 'Enter') {
                             e.preventDefault();
-                            saveEdit(todo, input.value);
+                            saveEdit(todo, input.value, null);
                         } else if(e.key === 'Escape') {
                             cancelEdit();
                         }
                     });
                     input.addEventListener('blur', function() {
-                        // 失焦时保存，但需避免因点击其他按钮立即触发取消
                         setTimeout(function() {
                             if(editingId === todo.id) {
-                                saveEdit(todo, input.value);
+                                saveEdit(todo, input.value, null);
                             }
                         }, 100);
                     });
@@ -555,6 +715,51 @@
         taskCount.innerHTML = '剩余 <strong>'+remaining+'</strong> 项 · 共 '+todos.length+' 条';
     }
 
+    // 编辑模式下弹出颜色选择器
+    function showEditColorPicker(todo, dotElement) {
+        // 使用全局颜色面板但修改其行为
+        buildColorPanelForEdit(todo, dotElement);
+        colorPanel.classList.add('show');
+        colorPanelOverlay.classList.add('show');
+        // 修改关闭行为
+        colorPanelOverlay.onclick = function() {
+            closeColorPanel();
+            colorPanelOverlay.onclick = closeColorPanel; // 恢复默认
+        };
+    }
+
+    function buildColorPanelForEdit(todo, dotElement) {
+        colorPanel.innerHTML = '';
+        presetColors.forEach(function(preset) {
+            var option = document.createElement('div');
+            option.className = 'color-option';
+            option.style.background = preset.color;
+            option.title = preset.name;
+            if (preset.color === todo.color) option.classList.add('selected');
+            option.addEventListener('click', function(e) {
+                e.stopPropagation();
+                changeEditColor(todo, preset.color);
+                if(dotElement) dotElement.style.background = preset.color;
+                closeColorPanel();
+                colorPanelOverlay.onclick = closeColorPanel;
+            });
+            colorPanel.appendChild(option);
+        });
+        var customWrapper = document.createElement('div');
+        customWrapper.className = 'color-custom-wrapper';
+        customWrapper.innerHTML = '<span>+</span>';
+        var customInput = document.createElement('input');
+        customInput.type = 'color';
+        customInput.value = todo.color;
+        customInput.addEventListener('input', function(e) {
+            changeEditColor(todo, e.target.value);
+            if(dotElement) dotElement.style.background = e.target.value;
+        });
+        customInput.addEventListener('click', function(e) { e.stopPropagation(); });
+        customWrapper.appendChild(customInput);
+        colorPanel.appendChild(customWrapper);
+    }
+
     function esc(str) { var d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
     function fmtDate(iso) { if(!iso) return ''; var d = new Date(iso); return (d.getMonth()+1)+'.'+String(d.getDate()).padStart(2,'0'); }
 
@@ -563,7 +768,7 @@
         if(channel) supabaseClient.removeChannel(channel);
         channel = supabaseClient.channel('todos-'+currentUser.id)
             .on('postgres_changes', { event:'*', schema:'public', table:'todos', filter:'user_id=eq.'+currentUser.id },
-                function() { if(!editingId) loadTodos(); }  // 编辑时不刷新，避免输入框丢失
+                function() { if(!editingId) loadTodos(); }
             )
             .subscribe();
     }
@@ -583,7 +788,6 @@
 
     window.addEventListener('beforeunload', function(){ stopClock(); if(channel) supabaseClient.removeChannel(channel); });
 
-    // 自动登录
     (async function() {
         try {
             var res = await supabaseClient.auth.getUser();
